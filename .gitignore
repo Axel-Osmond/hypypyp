@@ -1,0 +1,49 @@
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checking / linting caches
+.mypy_cache/
+.ruff_cache/
+.pylint.d/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Sphinx documentation build
+docs/_build/
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local config / secrets
+.env
+.env.*
+*.local
+
+# Logs
+*.log
