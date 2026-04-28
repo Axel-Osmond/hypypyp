@@ -1,6 +1,7 @@
 # Hypypyp
 
-
+[![Documentation](https://github.com/Axel-Osmond/hypypyp/actions/workflows/docs.yml/badge.svg)](https://github.com/Axel-Osmond/hypypyp/actions/workflows/docs.yml)
+[![Tests](https://github.com/Axel-Osmond/hypypyp/actions/workflows/tests.yml/badge.svg)](https://github.com/Axel-Osmond/hypypyp/actions/workflows/tests.yml)
 
 A small python library to work in the categories of (finite) sets and (finite) hypergraphs.
 
@@ -143,17 +144,17 @@ The public API may change. The current version is intended primarily for mathema
 From the repository root:
 
 
-
+```python
 pip install -e .
-
+```
 
 
 For development tools:
 
 
-
+```python
 pip install -e ".\[dev]"
-
+```
 
 
 ## Quick examples
@@ -163,13 +164,15 @@ pip install -e ".\[dev]"
 ### To initialize a NamedSet
 
 
-
+```python
+import seth
+import hyp
 X = seth.NamedSet(name = "X", elements = {1, 2, 3})
 
 
 
 X.content() to display its elements inline, X.display() to spread each elements on distincts lines
-
+```
 
 
 ### To initialize a NamedFunction
@@ -227,7 +230,7 @@ HX = hyp.Hypergraph(
     )
 
 
-HX.identity, HX.dual, HX.support\_ties('x0'), HX.hypergraph\_to\_mutable()…
+HX.identity, HX.dual, HX.support\_ties('x0'), HX.hypergraph\_to\_mutable()
 
 ```
 
@@ -236,9 +239,9 @@ HX.identity, HX.dual, HX.support\_ties('x0'), HX.hypergraph\_to\_mutable()…
 Also are provided a list of simple finite hypergraphs:
 
 
-
-walking\_link(n), walking\_links\_product(n,m), walking\_loop(n), discret(n), reticulation(n,m)...
-
+```python
+walking\_link(n), walking\_links\_product(n,m), walking\_loop(n), discret(n), reticulation(n,m)
+```
 
 
 ## To initialize a HypergraphMorphism
