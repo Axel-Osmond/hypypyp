@@ -12,6 +12,7 @@ It currently contains two public packages:
    :maxdepth: 2
    :caption: Contents:
 
+   api
    installation
    quickstart
    terminology
