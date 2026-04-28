@@ -26,6 +26,8 @@ dev = [
     "ruff",
     "sphinx",
     "furo",
+    "sphinx-autodoc-typehints",
+    "myst-parser",
 ]
 
 [tool.setuptools.packages.find]
