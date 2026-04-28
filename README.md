@@ -2,7 +2,7 @@
 
 
 
-A small python Library to work in the categories of (finite) sets and (finite) hypergraphs.
+A small python library to work in the categories of (finite) sets and (finite) hypergraphs.
 
 
 
@@ -10,7 +10,7 @@ A small python Library to work in the categories of (finite) sets and (finite) h
 
 
 
-Hypypyp contains two librarires:
+Hypypyp contains two modules:
 
 * Seth: a module to work in the category of (finite) sets
 * Hyp : a module depending on Seth to work in the category of (finite) hypergraphs
@@ -21,13 +21,13 @@ Hypypyp contains two librarires:
 
 
 
-Seth allows to represent (finite) sets and map between them.
+Seth allows to represent (finite) sets and maps between them.
 
 
 
 Sets are represented by the class NamedSet, whose instances consist of a frozenset and a name.
 
-As frozenset are immutables, so are NamedSet, which can hence be elements of other NamedSets.
+As frozenset are immutable, so are NamedSet, which can hence be elements of other NamedSets.
 
 
 
@@ -57,6 +57,8 @@ In order to preserve the structure attached to objects, universal constructions 
 
 
 
+```text
+
 Representable
 
 &#x09;|--- NamedSets
@@ -69,11 +71,13 @@ Representable
 
 &#x09;	|--- other limits and colimits
 
-&#x09;	|--- Setoids, homsets...
+&#x09;	|--- Setoids, homsets…
+
+```
 
 
 
-Universal constructions, as well as the domain and codomain arguments of NamedFunctions, take Representable as input: hence the structure attached to object can be composed without loss. One access to the underlying object of a representable by the attribute .obj.
+Universal constructions, as well as the domain and codomain arguments of NamedFunctions, take Representable as input: hence the structure attached to object can be composed without loss. One accesses to the underlying object of a representable by the attribute .obj.
 
 
 
@@ -97,29 +101,29 @@ Here we define hypergraphs as mere span of sets: H = (S,T,L) with maps σ : T �
 
 
 
-Hypergraphs are represented by the class Hypergraph, which take as S,T,L three NamedSets and as σ,λ two NamedFunction: relying on the classes NamedSet and NamedFunction will allow to invoque the methods of seth. The resulting objects are immutable and eligible to different methods returning as dictionnaries the relations between nodes, links and ties, or also displaying supports of links, occurrences of nodes etc...
+Hypergraphs are represented by the class Hypergraph, which take as S,T,L three NamedSets and as σ,λ two NamedFunction: relying on the classes NamedSet and NamedFunction will allow to invoke the methods of seth. The resulting objects are immutable and eligible to different methods returning as dictionaries the relations between nodes, links and ties, or also displaying supports of links, occurrences of nodes etc...
 
 
 
-A second class or MutableHypergraphs simplifies their presentation via native sets to allow for operation on them as adding, removing, renaming elements. One can go from mutable to immutable and vice-versa.
+A second class, MutableHypergraphs, simplifies their presentation via native sets to allow for operation on them as adding, removing, renaming elements. One can go from mutable to immutable and vice-versa.
 
 
 
-Hypergraph morphisms f : H → G are triples f = (Sf : SH → SG, Tf : TH → TG, Lf : LH → LG) satisfying that σG Tf = Sf σH and λG Tf = Sf λH. They are represented by triple of NamedFunctions. 
+Hypergraph morphisms f : H → G are triples f = (Sf : SH → SG, Tf : TH → TG, Lf : LH → LG) satisfying that σG Tf = Sf σH and λG Tf = Lf λH. They are represented by triple of NamedFunctions.
 
 
 
-The category of hypergraphs is a presheaf topos, hence all limits and colimits are easily constructed from those in Seth. Again a hierarchie of Representable, Construct, Hypergraph and corresponding classes for universal construction allow to stack structure without loss. 
+The category of hypergraphs is a presheaf topos, hence all limits and colimits are easily constructed from those in Seth. Again a hierarchy of Representable, Construct, Hypergraph and corresponding classes for universal construction allow to stack structure without loss.
 
 
 
-Also available are the different closed monoidal structures on Hyp, namely 
+Also available are the different closed monoidal structures on Hyp, namely
 
 * the funny tensor product
 * the straight tensor product
 * the strong tensor product
 
-Funny product comes with its structures maps and homgraphs (v1)
+Funny product comes with its structure maps and homgraphs (v1)
 
 
 
@@ -179,6 +183,8 @@ X.content() to display its elements inline, X.display() to spread each elements 
 
 
 
+```python
+
 Y = seth.NamedSet(name = "Y", elements = {"a", "b"})
 
 
@@ -199,6 +205,8 @@ f = seth.NamedFunction(name = "f", dom = X, cod = Y, table = f\_table)
 
 f.display(), f.image\_factorization, f.fibers\_decomposition
 
+```
+
 
 
 Beware that composition(f,g) is g ∘ f
@@ -208,6 +216,8 @@ Beware that composition(f,g) is g ∘ f
 ## To initialize a Hypergraph
 
 
+
+```python
 
 SX = seth.NamedSet(elements = {'x0', 'x1'}, name = 'SX')
 
@@ -253,6 +263,8 @@ SX = seth.NamedSet(elements = {'x0', 'x1'}, name = 'SX')
 
 HX.identity, HX.dual, HX.support\_ties('x0'), HX.hypergraph\_to\_mutable()…
 
+```
+
 
 
 Also are provided a list of simple finite hypergraphs:
@@ -266,6 +278,8 @@ walking\_link(n), walking\_links\_product(n,m), walking\_loop(n), discret(n), re
 ## To initialize a HypergraphMorphism
 
 
+
+```python
 
 Sf = seth.NamedFunction(
 
@@ -317,7 +331,7 @@ Sf = seth.NamedFunction(
 
 &#x20;   )
 
-
+```
 
 
 
@@ -331,7 +345,17 @@ FunnyTensor(HX,HY)...
 
 
 
-Beware that universal constructions in Set and Hyp as (co)product, initial/terminal, pullback/pushout etc have the same name, so beware to import them separately as seth.construction… and hyp.construction… or to create alias. 
+Beware that universal constructions in Set and Hyp as (co)product, initial/terminal, pullback/pushout etc have the same name, so beware to import them separately as seth.construction… and hyp.construction… or to create alias.
 
 
+
+## Acknowledgements
+
+&#x20;
+
+This project was developed with assistance from ChatGPT and GitHub Copilot for code review, documentation, refactoring suggestions, and development workflow support.
+
+
+
+All mathematical definitions, design decisions, and implementation choices remain the responsibility of the author.
 
