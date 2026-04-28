@@ -34,11 +34,12 @@ It will be the parent class of :
 
 
 class Representable(ABC):
-    """A representable is an object with an underlying hypergraph
+    """A representable is an object with an underlying hypergraph.
     This superclass promises:
+
     - that the underlying hypergraph is accessible via the obj property
-    - that the representable has a name, representation
-    based on the underlying hypergraph
+    - that the representable has a name, representation based on the underlying hypergraph
+    
     Representable are immutable, hence hashable,
     and equality is based on the underlying hypergraph, independently of the name.
     It also has identity morphism and dual construction"""
@@ -83,10 +84,12 @@ class Representable(ABC):
     def dual(self) -> Hypergraph:
         """Return the dual of the hypergraph,
         obtained by swapping nodes and links
+        
         H* satisfies:
-        - S(H*) = L(H)
-        - L(H*) = S(H)
-        - T(H*) = T(H)
+
+            - S(H*) = L(H)
+            - L(H*) = S(H)
+            - T(H*) = T(H)
         """
         if isinstance(self, Binary_Type):
             name = f"({self.name})*"
@@ -235,17 +238,27 @@ class Construct(Representable):
 
 
 class Hypergraph(Representable):
-    """Class representing hypergraphs as span of sets
+    """A (finite) hypergraph represented as a span of Named Sets and NamedFunctions,
     with a name and a custom display method.
 
-    Attributes:
-    -----------
-    Nodes : a named set representing the nodes of the hypergraph
-    Links : a named set representing the links of the hypergraph
-    Ties : a named set representing the ties of the hypergraph
-    node_map : a named function mapping nodes to their corresponding ties
-    link_map : a named function mapping links to their corresponding ties
-    name : name for the hypergraph
+    A hypergraph consists of:
+
+    - a set of sites ``S``;
+    - a set of links ``L``;
+    - a set of ties ``T``;
+    - a site map ``σ : T → S``;
+    - a link map ``λ : T → L``.
+
+    Args:
+        sites: The named set of sites.
+        links: The named set of links.
+        ties: The named set of incidence witnesses.
+        sigma: The function sending each tie to its site.
+        lambd: The function sending each tie to its link.
+
+    Notes:
+        A site may occur several times in the same link, because incidences
+        are represented by explicit ties.
     """
 
     def __init__(
@@ -323,8 +336,7 @@ class Hypergraph(Representable):
         return self._link_map
 
     def dictionnaire(self) -> dict:
-        """Return a dictionary coding the relation
-        T subs S x L, of the form {t : (s, l)}."""
+        """Return a dictionary coding the relation T subs S x L, of the form {t : (s, l)}."""
         dic = dict()
         Tsorted = sorted(self.Ties, key=lambda t: repr(t))
         for t in Tsorted:
@@ -365,7 +377,18 @@ class Hypergraph(Representable):
         )
 
     def display(self) -> str:
-        """Return a string representation of the hypergraph."""
+        """Return a string representation of the hypergraph.
+        
+        Example of display:
+            Hypergraph HX
+                Nodes (2): 
+                        x0 
+                        x1 
+                Links (1): 
+                        lx 
+                Ties (2): 
+                        t0 : x0 ∈ lx 
+                        t1 : x1 ∈ lx """
         return self.__repr__()
 
     def __eq__(self, other) -> bool:
@@ -411,29 +434,49 @@ class Hypergraph(Representable):
     # les fonctions suivantes requièrent que S, L, T soient des ensembles nommés
 
     def support_ties(self, l) -> NamedSet:
-        """For a link l, return the support |l| = {t in T | link_map(t) = l}"""
+        """
+        For a link l, return the support 
+
+            |l| = {t in T | link_map(t) = l}
+        """
         return NamedSet(self.links_support[l], name=f"|{l}|")
 
     def support_nodes(self, l) -> NamedSet:
-        """For a link l, return the support ||l|| = {s in S | s_map(t) = s for some t in |l|}"""
+        """
+        For a link l, return the support 
+
+            ||l|| = {s in S | s_map(t) = s for some t in |l|}
+        """
         return NamedSet(self.link_to_nodes[l], name=f"||{l}||")
 
     def valence_len(self, s, l) -> int:
         """For a node s and a link l, return the valence of s in l,
-        that is the number of ties t such that node_map(t) = s and link_map(t) = l."""
+        that is the number of ties t such that node_map(t) = s and link_map(t) = l
+        """
         return len(self.valences[(s, l)])
 
     def occurrences_ties(self, s) -> NamedSet:
-        """For a node s, return the set Occ(s) = {t in T | node_map(t) = s}."""
+        """
+        For a node s, return the set 
+
+            Occ(s) = {t in T | node_map(t) = s}
+        """
         return NamedSet(self.nodes_support[s], name=f"Occ({s})")
 
     def occurrences_links(self, s) -> NamedSet:
-        """For a node s, return the set Occ_L(s) = {l in L | s is in the support of l}."""
+        """
+        For a node s, return the set 
+
+            Occ_L(s) = {l in L | s is in the support of l}
+        """
         return NamedSet(self.node_to_links[s], name=f"Occ_L({s})")
 
     def valence_set(self, s, l) -> NamedSet:
-        """For a node s and a link l,
-        return the set Val(s, l) = {t in T | node_map(t) = s and link_map(t) = l}."""
+        """
+        For a node s and a link l, return the set
+
+            Val(s, l) = {t in T | node_map(t) = s and link_map(t) = l}
+        """
         return NamedSet(self.valences[(s, l)], name=f"<{s} | {l}>")
 
     def test_simplicité(self) -> bool:
@@ -472,14 +515,22 @@ class Hypergraph(Representable):
         return seth.Pullback(self.node_map, self.node_map)
 
     def intersection_nodes(self, l1, l2) -> NamedSet:
-        """For two links l1 and l2, return the set ||l1|| ∩ ||l2|| = {s in S | s is in the support of l1 and s is in the support of l2}."""
+        """
+        For two links l1 and l2, return the set 
+
+             ||l1|| ∩ ||l2|| = {s in S | s is in the support of l1 and s is in the support of l2}
+        """
         return NamedSet(
             self.link_to_nodes[l1].intersection(self.link_to_nodes[l2]),
             name=f"||{l1}|| ∩ ||{l2}||",
         )
     
     def cooccurences_links(self, s1, s2) -> NamedSet:
-        """For two nodes s1 and s2, return the set Occ_L(s1) ∩ Occ_L(s2) = {l in L | s1 is in the support of l and s2 is in the support of l}."""
+        """
+        For two nodes s1 and s2, return the set 
+
+            Occ_L(s1) ∩ Occ_L(s2) = {l in L | s1 is in the support of l and s2 is in the support of l}
+        """
         return NamedSet(
             self.node_to_links[s1].intersection(self.node_to_links[s2]),
             name=f"Occ_L({s1}) ∩ Occ_L({s2})",
@@ -505,9 +556,16 @@ class Hypergraph(Representable):
 
 
 def hypergraph_from_dict_brut(D: dict, S0=None, L0=None, name=None) -> Hypergraph:
-    """Return a Hypergraph from a dictionary
-    a dictionary coding the relation T subs S x L, of the form {t : (s, l)}.
-    Here the sets S and L are optional and will be constructed from the values of the dictionary if not provided.
+    """Return a Hypergraph from a dictionary specifying ties in an ergonomic way.
+    Here the specified nodes and links are native sets, do not require names.
+    The values of the dictionary are pairs of the form (s, l) where s is a node and l is a link.
+    The values s and l need not be already in S0 nor L0, they will be added to the support of the hypergraph.
+    
+    Args:
+        D: A dictionary coding the span T ↣ S x L, of the form {t : (s, l)}.
+        S0: An optional set of nodes to add to the support of the hypergraph.
+        L0: An optional set of links to add to the support of the hypergraph.
+        name: An optional name for the hypergraph.
     """
     T = NamedSet(set(D.keys()), name=f"T_{name}" if name else "T")
     S = set()
@@ -541,9 +599,14 @@ def hypergraph_from_dict_brut(D: dict, S0=None, L0=None, name=None) -> Hypergrap
 def hypergraph_from_dict(
     dic: dict, Nodes: seth.Representable, Links: seth.Representable, name=None
 ) -> Hypergraph:
-    """Return a Hypergraph from a dictionary
-    a dictionary coding the relation T subs S x L, of the form {t : (s, l)}.
-    Here the sets S and L are provided as arguments.
+    """Return a Hypergraph from a dictionary. 
+    Here the values of the dictionary are elements of the given sets of nodes and links.
+
+    Args:
+        dic: A dictionary coding the span T ↣ S x L, of the form {t : (s, l)}.
+        Nodes: A NamedSet (or more generally, a seth.Representable) of nodes.
+        Links: A NamedSet (or more generally, a seth.Representable) of links.
+        name: An optional name for the hypergraph.
     """
     T = NamedSet(set(dic.keys()), f"T_{name}" if name else "T")
     s_map = NamedFunction(
@@ -564,7 +627,7 @@ def hypergraph_from_dict(
 
 
 def hypergraph_from_set(set_input: set | seth.Representable, name: str) -> Hypergraph:
-    """Return a Hypergraph from a set of nodes,
+    """Return a codiscrete Hypergraph from a set of nodes,
     with a single link and ties corresponding to the nodes."""
     if not isinstance(set_input, (set, seth.Representable)):
         raise TypeError("set_input doit être un set ou un seth.Representable")
@@ -591,10 +654,19 @@ def hypergraph_from_set(set_input: set | seth.Representable, name: str) -> Hyper
 class MutableHypergraph:
     """Class of mutable hypergraphs,
     whose objects of Nodes and Links are mutable native sets
-    and ties are coded by a dictionary of the form {t : (s, l)}."""
+    and ties are coded by a dictionary of the form {t : (s, l)}.
+    
+    Elements can be added or removed from the sets of nodes and links, and from the dictionary of ties.
+
+    Args:
+        Nodes: A set of nodes.
+        Links: A set of links.
+        Data: A dictionary coding the span T ↣ S x L, of the form {t : (s, l)}.
+        name: An optional name for the hypergraph.
+        
+    """
 
     def __init__(self, Nodes: set, Links: set, Data: dict, name=None):
-
         self.Nodes = Nodes  # set ou list
         self.Links = Links  # set ou list
         self.Data = Data  # dictionnaire de la forme {t : (s, l)} codant la relation fonctionnelle T subs S \times L
@@ -612,6 +684,8 @@ class MutableHypergraph:
         )
 
     def mutable_to_hypergraph(self) -> Hypergraph:
+        """Return a Hypergraph with the same underlying sets and maps,
+        but with named sets and named functions."""
         S = NamedSet(set(self.Nodes), name=f"S({self.name})" if self.name else "S")
         L = NamedSet(set(self.Links), name=f"L({self.name})" if self.name else "L")
         T = NamedSet(
@@ -641,7 +715,6 @@ class MutableHypergraph:
         presentation_nodes = str()
         presentation_links = str()
 
-        # tri robuste pour objets non comparables (morphismes, témoins, etc.)
         safe_key = lambda x: (type(x).__name__, repr(x))
 
         S = sorted(self.Nodes, key=safe_key)
@@ -770,7 +843,9 @@ class MutableHypergraph:
 class Terminal(Construct):
     """Terminal object in the category of hypergraphs,
     which is the hypergraph with a single node, a single link and a single tie between them.
-    S1 = T1 = L1"""
+        
+        S1 = T1 = L1 = {∗}
+    """
 
     def __init__(self):
         terminal_set = seth.Terminal()
@@ -813,7 +888,9 @@ class Terminal(Construct):
 class Initial(Construct):
     """Initial object in the category of hypergraphs,
     which is the hypergraph with no nodes, no links and no ties.
-     S0 = T0 = L0 = emptyset"""
+
+     S0 = T0 = L0 = ∅
+    """
 
     def __init__(self):
         initial_set = seth.Initial()
@@ -856,7 +933,10 @@ class Initial(Construct):
 class Unit_funny(Construct):
     """Unit of the funny and strong tensor products,
     which is the hypergraph with a single node and no links
-     S1 = 1, T1 = ∅, L1 = ∅"""
+
+        - S1 = 1, T1 = ∅, 
+        - L1 = ∅
+    """
 
     def __init__(self):
         terminal_set = seth.Terminal()
@@ -875,7 +955,10 @@ class Unit_funny(Construct):
 class Unit_Straight(Construct):
     """Unit of the straight tensor product,
     which is the hypergraph with a single link and no nodes
-     S1 = ∅, T1 = ∅, L1 = 1"""
+
+        - S1 = ∅, 
+        - T1 = ∅, L1 = 1
+    """
 
     def __init__(self):
         terminal_set = seth.Terminal()
@@ -900,14 +983,13 @@ class HypergraphMorphism:
     """Class representing morphisms of hypergraphs as triples of functions
     with a name and a custom display method.
 
-    Attributes:
-    -----------
-    dom : the domain hypergraph
-    cod : the codomain hypergraph
-    node_map : a named function mapping nodes of the domain to nodes of the codomain
-    tie_map : a named function mapping ties of the domain to ties of the codomain
-    link_map : a named function mapping links of the domain to links of the codomain
-    name : the name of the morphism
+    Args:
+        dom : the domain hypergraph
+        cod : the codomain hypergraph
+        node_map : a named function mapping nodes of the domain to nodes of the codomain
+        tie_map : a named function mapping ties of the domain to ties of the codomain
+        link_map : a named function mapping links of the domain to links of the codomain
+        name : the name of the morphism
 
     Enter the triple of functions as a tuple (node_map, tie_map, link_map) in the parameter 'map' of the constructor.
     """
@@ -971,8 +1053,8 @@ class HypergraphMorphism:
         """Test whether the triple of functions (node_map, tie_map, link_map)
         satisfies the morphism condition, that is,
         whether for every tie t in dom.Ties
-        node_map(dom.node_map(t)) = cod.node_map(tie_map(t)) and
-        link_map(dom.link_map(t)) = cod.link_map(tie_map(t))."""
+         node_map(dom.node_map(t)) = cod.node_map(tie_map(t)) and
+         link_map(dom.link_map(t)) = cod.link_map(tie_map(t))."""
         dom_node_of_tie = self.dom.obj.nodes_dict
         dom_link_of_tie = self.dom.obj.links_dict
         cod_node_of_tie = self.cod.obj.nodes_dict
@@ -995,7 +1077,9 @@ class HypergraphMorphism:
     # ici dom et cod servent à differentier des methodes dom, cod de la classe NamedFunction
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X → Y"."""
+        """Return a symbolic representation of the function, e.g., 
+         "f : X → Y" 
+        """
         return f"{self.name} : {self.dom.name} → {self.cod.name} "
 
     def __repr__(self) -> str:
@@ -1095,7 +1179,8 @@ class HypergraphMorphism:
         )
 
     def image(self) -> Hypergraph:
-        """Pointwise calculation of the image of the morphism, that is the hypergraph whose sets of nodes, links and ties are the images of the corresponding functions,"""
+        """Pointwise calculation of the image of the morphism, that is the hypergraph 
+        whose sets of nodes, links and ties are the images of the corresponding functions,"""
         return Hypergraph(
             Nodes=self.node_map.image(),
             Ties=self.tie_map.image(),
@@ -1117,6 +1202,8 @@ class HypergraphMorphism:
 
 
 def composition(f1: HypergraphMorphism, f2: HypergraphMorphism) -> HypergraphMorphism:
+    """ Return the composition of two morphisms of hypergraphs f1 and f2, that is the morphism of hypergraphs
+     f2 ∘ f1 : dom(f1) → cod(f2) given by the composition of the underlying functions. Beware the order."""
     if f1.cod != f2.dom:
         raise ValueError("Morphisms do not compose")
     else:
@@ -1135,7 +1222,8 @@ def composition(f1: HypergraphMorphism, f2: HypergraphMorphism) -> HypergraphMor
 
 
 class HypergraphMonomorphism(HypergraphMorphism):
-    """Un monomorphisme d'hypergraphes est un morphisme d'hypergraphes dont les fonctions composantes sont injectives."""
+    """A monomorphism in the category of hypergraphs
+    is a morphism of hypergraphs whose component functions are injective."""
 
     def __init__(self, dom: Representable, cod: Representable, map: tuple, name=None):
         super().__init__(dom=dom, cod=cod, map=map, name=name)
@@ -1143,7 +1231,8 @@ class HypergraphMonomorphism(HypergraphMorphism):
             raise ValueError("Le morphisme n'est pas un monomorphisme d'hypergraphes.")
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X ↣ Y"."""
+        """Return a symbolic representation of the function, e.g., 
+         "f : X ↣ Y" """
         return f"{self.name} : {self.dom.name} ↣ {self.cod.name} "
 
     @classmethod
@@ -1159,7 +1248,8 @@ class HypergraphMonomorphism(HypergraphMorphism):
 
 
 class HypergraphEpimorphism(HypergraphMorphism):
-    """Un épimorphisme d'hypergraphes est un morphisme d'hypergraphes dont les fonctions composantes sont surjectives."""
+    """An epimorphism in the category of hypergraphs
+    is a morphism of hypergraphs whose component functions are surjective."""
 
     def __init__(self, dom: Representable, cod: Representable, map: tuple, name=None):
         super().__init__(dom=dom, cod=cod, map=map, name=name)
@@ -1167,7 +1257,8 @@ class HypergraphEpimorphism(HypergraphMorphism):
             raise ValueError("Le morphisme n'est pas un épimorphisme d'hypergraphes.")
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X ↠ Y"."""
+        """Return a symbolic representation of the function, e.g., 
+         "f : X ↠ Y" """
         return f"{self.name} : {self.dom.name} ↠ {self.cod.name} "
 
     @classmethod
@@ -1184,8 +1275,14 @@ class HypergraphEpimorphism(HypergraphMorphism):
     def sections(self) -> NamedSet:
         """For an epimorphism f : G ↠ H,
         Return the set Γ(f) of sections of the ,
-        that is the set of morphisms g : H → G such that
-        fg = id_H."""
+        that is the set of morphisms 
+
+            g : H → G
+        
+        such that
+
+            f ∘ g = id_H
+        """
         sections = set()
         for f in CartesianHomSet(self.cod, self.dom):
             if composition(f, self) == self.cod.identity:
@@ -1211,7 +1308,10 @@ class HypergraphIsomorphism(HypergraphMorphism):
         )
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X ≃ Y"."""
+        """Return a symbolic representation of the function, e.g.,
+
+            f : X ≃ Y
+        """
         return f"{self.name} : {self.dom.name} ≃ {self.cod.name} "
 
     @classmethod
@@ -1234,7 +1334,8 @@ class HypergraphIsomorphism(HypergraphMorphism):
 class CartesianHomSet(seth.Construct):
     """Represent the homset in Hyp
     For H0,H1, return Hyp[H0,H1], the set of morphisms of hypergraphs from H0 to H1
-    Object calculation is defered to the method generate, which calculates the homset as a subset of the cartesian product of the homsets of the underlying sets.
+    Object calculation is defered to the method generate, 
+    which calculates the homset as a subset of the cartesian product of the homsets of the underlying sets.
     """
 
     def __init__(self, H0: Representable, H1: Representable):
@@ -1366,7 +1467,6 @@ def hom_coconforme(H_0: Representable, H_1: Representable) -> NamedSet:
 
 
 def Restriction_nodes(H: Representable, X: NamedSet, f: NamedFunction) -> Hypergraph:
-    # f : X -> Nodes(H)
     pb = seth.Pullback(f, H.node_map)
     T_restr = pb
     L_restr = NamedSet(set(H.link_map(t[1]) for t in T_restr), name=f"L_restr_{H.name}")
@@ -1398,12 +1498,14 @@ and they are calculated pointwise on the underlying sets of nodes, links and tie
 
 class Product(Construct):
     """H0 × H1 is the product of H0 and H1 in the category of hypergraphs,
+
     It is defined as:
-    S_{H0 × H1} = S_{H0} × S_{H1}
-    T_{H0 × H1} = T_{H0} × T_{H1}
-    L_{H0 × H1} = L_{H0} × L_{H1}
-    node_map_{H0 × H1} = node_map_{H0} × node_map_{H1}
-    link_map_{H0 × H1} = link_map_{H0} × link_map_{H1}
+
+        - S_{H0 × H1} = S_{H0} × S_{H1}
+        - T_{H0 × H1} = T_{H0} × T_{H1}
+        - L_{H0 × H1} = L_{H0} × L_{H1}
+        - σ_{H0 × H1} = σ_{H0} × σ_{H1}
+        - λ_{H0 × H1} = λ_{H0} × λ_{H1}
     """
 
     def __init__(self, H0: Representable, H1: Representable):
@@ -1429,7 +1531,11 @@ class Product(Construct):
         )
 
     def proj_0(self) -> HypergraphMorphism:
-        """Return the projection π0 : H0 × H1 ↠ H0"""
+        """
+        Return the projection
+
+            π0 : H0 × H1 ↠ H0
+        """
         node_map = (
             self.Nodes.proj_0()
             if hasattr(self.Nodes, "proj_0")
@@ -1468,7 +1574,11 @@ class Product(Construct):
         )
 
     def proj_1(self) -> HypergraphMorphism:
-        """Return the projection π1 : H0 × H1 ↠ H1"""
+        """
+        Return the projection 
+
+            π1 : H0 × H1 ↠ H1
+        """
         node_map = (
             self.Nodes.proj_1()
             if hasattr(self.Nodes, "proj_1")
@@ -1509,9 +1619,15 @@ class Product(Construct):
     def universal_solution(
         self, f1: HypergraphMorphism, f2: HypergraphMorphism
     ) -> HypergraphMorphism:
-        """For a cone f1 : C → H0, f2 : C → H1,
-        return the unique morphism (f1,f2) : C → H0 × H1
-        such that π_0 ∘ (f1,f2) = f1 and π_1 ∘ (f1,f2) = f2.
+        """
+        For a cone f1 : C → H0, f2 : C → H1, return the unique morphism 
+
+            (f1,f2) : C → H0 × H1
+        such that 
+
+            - π_0 ∘ (f1,f2) = f1
+            - π_1 ∘ (f1,f2) = f2
+
         It is computed from the universal solutions
         for the underlying sets of nodes, links and ties."""
         if f1.cod != self.H0 or f2.cod != self.H1:
@@ -1528,7 +1644,11 @@ class Product(Construct):
         )
 
     def braiding(self) -> HypergraphIsomorphism:
-        """Return the braiding isomorphism β : H0 × H1 ≃ H1 × H0"""
+        """
+        Return the braiding isomorphism 
+
+            β : H0 × H1 ≃ H1 × H0
+        """
         braid = Product(self.H1, self.H0)
         node_map = self.Nodes.braiding()
         tie_map = self.Ties.braiding()
@@ -1542,7 +1662,11 @@ class Product(Construct):
 
 
 def unitor_cartesian_left(H: Representable) -> HypergraphIsomorphism:
-    """Return the left unitor isomorphism λ : 1 × H ≃ H"""
+    """
+    Return the left unitor isomorphism
+
+        λ : 1 × H ≃ H
+        """
     unitor = Product(Terminal(), H)
     node_map = seth.unitor_cartesian_left(H.Nodes)
     tie_map = seth.unitor_cartesian_left(H.Ties)
@@ -1553,7 +1677,11 @@ def unitor_cartesian_left(H: Representable) -> HypergraphIsomorphism:
 
 
 def unitor_cartesian_right(H: Representable) -> HypergraphIsomorphism:
-    """Return the right unitor isomorphism ρ : H × 1 ≃ H"""
+    """
+    Return the right unitor isomorphism
+
+        ρ : H × 1 ≃ H
+    """
     unitor = Product(H, Terminal())
     node_map = seth.unitor_cartesian_right(H.Nodes)
     tie_map = seth.unitor_cartesian_right(H.Ties)
@@ -1566,7 +1694,11 @@ def unitor_cartesian_right(H: Representable) -> HypergraphIsomorphism:
 def associator_cartesian(
     H0: Representable, H1: Representable, H2: Representable
 ) -> HypergraphIsomorphism:
-    """Return the associator isomorphism α : (H0 × H1) × H2 ≃ H0 × (H1 × H2)"""
+    """
+    Return the associator isomorphism 
+
+        α : (H0 × H1) × H2 ≃ H0 × (H1 × H2)
+    """
     leftprod = Product(Product(H0, H1), H2)
     rightprod = Product(H0, Product(H1, H2))
     node_map = seth.associator_cartesian(H0.Nodes, H1.Nodes, H2.Nodes)
@@ -1583,7 +1715,12 @@ def associator_cartesian(
 def product_morphism(
     f0: HypergraphMorphism, f1: HypergraphMorphism
 ) -> HypergraphMorphism:
-    """Return the product morphism f0 × f1 : H0 × H1 → G0 × G1"""
+    """
+    For two morphisms f0 : H0 → G0 and f1 : H1 → G1, 
+    return the product morphism 
+
+        f0 × f1 : H0 × H1 → G0 × G1
+        """
     product_dom = Product(f0.dom, f1.dom)
     product_cod = Product(f0.cod, f1.cod)
     node_map = seth.product_maps(f0.node_map, f1.node_map)
@@ -1602,12 +1739,14 @@ def product_morphism(
 
 class FiniteProduct(Construct):
     def __init__(self, hypergraph_list: list[Hypergraph]):
-        """Return the finite product of a list of hypergraphs
-        S_{H0 × H1 × ... × Hn} = S_{H0} × S_{H1} × ... × S_{Hn}
-        T_{H0 × H1 × ... × Hn} = T_{H0} × T_{H1} × ... × T_{Hn}
-        L_{H0 × H1 × ... × Hn} = L_{H0} × L_{H1} × ... × L_{Hn}
-        node_map_{H0 × H1 × ... × Hn} = node_map_{H0} × node_map_{H1} × ... × node_map_{Hn}
-        link_map_{H0 × H1 × ... × Hn} = link_map_{H0} × link_map_{H1} × ... × link_map_{Hn}
+        """
+        Return the finite product of a list of hypergraphs H0, H1, ..., Hn, defined as:
+
+            - S_{H0 × H1 × ... × Hn} = S_{H0} × S_{H1} × ... × S_{Hn}
+            - T_{H0 × H1 × ... × Hn} = T_{H0} × T_{H1} × ... × T_{Hn}
+            - L_{H0 × H1 × ... × Hn} = L_{H0} × L_{H1} × ... × L_{Hn}
+            - σ_{H0 × H1 × ... × Hn} = σ_{H0} × σ_{H1} × ... × σ_{Hn}
+            - λ_{H0 × H1 × ... × Hn} = λ_{H0} × λ_{H1} × ... × λ_{Hn}
         """
         self.hypergraph_list = hypergraph_list
         self._name = " × ".join(f"{H.name}" for H in hypergraph_list)
@@ -1628,7 +1767,11 @@ class FiniteProduct(Construct):
             )
 
     def proj(self, index: int) -> HypergraphMorphism:
-        """Return the projection morphism π_i : H0 × H1 × ... × Hn → Hi"""
+        """
+        Return the projection morphism 
+
+            π_i : H0 × H1 × ... × Hn → Hi
+        """
         if index < 0 or index >= len(self.hypergraph_list):
             raise IndexError("Index de projection hors limites.")
         H = self.hypergraph_list[index]
@@ -1669,9 +1812,16 @@ class FiniteProduct(Construct):
     def universal_solution(
         self, morphism_list: list[HypergraphMorphism]
     ) -> HypergraphMorphism:
-        """For a cone f_i : C → Hi,
-        return the unique morphism (f_i) : C → H0 × H1 × ... × Hn
-        such that π_i ∘ (f_i) = f_i for all i.
+        """
+        For a cone f_i : C → Hi,
+        return the unique morphism 
+
+            (f_i) : C → H0 × H1 × ... × Hn
+
+        such that for all i
+
+            π_i ∘ (f_i) = f_i 
+
         It is computed from the universal solutions
         at the underlying sets of nodes, links and ties."""
         if len(morphism_list) != len(self.hypergraph_list):
@@ -1702,7 +1852,11 @@ class FiniteProduct(Construct):
 def product_morphism_list(
     morphism_list: list[HypergraphMorphism],
 ) -> HypergraphMorphism:
-    """Return the product morphism Π f_i : H0 × H1 × ... × Hn → G0 × G1 × ... × Gn"""
+    """
+    From a list of morphisms f0, f1, ..., fn, return the product morphism 
+
+        Π fi : H0 × H1 × ... × Hn → G0 × G1 × ... × Gn
+    """
     product_dom = FiniteProduct([f.dom for f in morphism_list])
     product_cod = FiniteProduct([f.cod for f in morphism_list])
     node_map = seth.finite_product_maps([f.node_map for f in morphism_list])
@@ -1720,7 +1874,13 @@ def product_morphism_list(
 
 
 class Pullback(Construct):
-    """Return the pullback of two morphisms f0 : H0 → H2 and f1 : H1 → H2"""
+    """Return the pullback of two morphisms f0 : H0 → H2 and f1 : H1 → H2
+     H0 ×_{H2} H1, which is computed pointwise as
+      
+        - S_{H0 ×_{H2} H1} = S_{H0} ×_{S_{H2}} S_{H1}
+        - T_{H0 ×_{H2} H1} = T_{H0} ×_{T_{H2}} T_{H1}
+        - L_{H0 ×_{H2} H1} = L_{H0} ×_{L_{H2}} L_{H1}
+    """
 
     def __init__(self, f0: HypergraphMorphism, f1: HypergraphMorphism):
         self.f0 = f0
@@ -1764,7 +1924,11 @@ class Pullback(Construct):
         )
 
     def proj_0(self) -> HypergraphMorphism:
-        """Return the projection π0 : H0 ×_{H2} H1 → H0"""
+        """
+        Return the projection 
+
+            π0 : H0 ×_{H2} H1 → H0
+        """
         return HypergraphMorphism(
             dom=self,
             cod=self.H0,
@@ -1804,7 +1968,11 @@ class Pullback(Construct):
         )
 
     def proj_1(self) -> HypergraphMorphism:
-        """Return the projection π1 : H0 ×_{H2} H1 → H1"""
+        """
+        Return the projection
+
+            π1 : H0 ×_{H2} H1 → H1
+        """
         return HypergraphMorphism(
             dom=self,
             cod=self.H1,
@@ -1846,8 +2014,17 @@ class Pullback(Construct):
     def universal_solution(
         self, g0: HypergraphMorphism, g1: HypergraphMorphism
     ) -> HypergraphMorphism:
-        """For a cone g0 : C → H0, g1 : C → H1, return the unique morphism ⟨g0,g1⟩ : C → H0 ×_{H2} H1
-        such that π0 ∘ ⟨g0,g1⟩ = g0 and π1 ∘ ⟨g0,g1⟩ = g1."""
+        """For a cone 
+        g0 : C → H0, g1 : C → H1, 
+        return the unique morphism 
+
+            ⟨g0,g1⟩ : C → H0 ×_{H2} H1
+
+        such that 
+
+           -  π0 ∘ ⟨g0,g1⟩ = g0
+           -  π1 ∘ ⟨g0,g1⟩ = g1
+        """
         if g0.cod != self.H0 or g1.cod != self.H1:
             raise ValueError("Morphismes must have the right codomains")
         if g0.dom != g1.dom:
@@ -1876,8 +2053,8 @@ def kernel(f: HypergraphMorphism) -> Pullback:
 
 
 class Equalizer(Construct):
+    """Return the equalizer of two morphisms f0 : H0 → H1 and f1 : H0 → H1"""
     def __init__(self, f0: HypergraphMorphism, f1: HypergraphMorphism):
-        """Return the equalizer of two morphisms f0 : H0 → H1 and f1 : H0 → H1"""
         if f0.dom != f1.dom:
             raise ValueError(f"Domains do not match.")
         if f0.cod != f1.cod:
@@ -1906,7 +2083,11 @@ class Equalizer(Construct):
         )
 
     def inclusion(self) -> HypergraphMonomorphism:
-        """Return the inclusion morphism i : Eq(f0,f1) ↣ H0"""
+        """
+        Return the inclusion morphism
+
+            i : Eq(f0,f1) ↣ H0
+            """
         return HypergraphMonomorphism(
             dom=self,
             cod=self.H0,
@@ -1919,8 +2100,13 @@ class Equalizer(Construct):
         )
 
     def universal_solution(self, g: HypergraphMorphism) -> HypergraphMorphism:
-        """For a map g : C → H0 such that f0 ∘ g = f1 ∘ g, return the unique morphism ⟨g⟩ : C → Eq(f0,f1)
-        such that inclusion ∘ ⟨g⟩ = g."""
+        """For a map g : C → H0 such that f0 ∘ g = f1 ∘ g, return the unique morphism 
+        
+            ⟨g⟩ : C → Eq(f0,f1)
+
+        such that 
+            i ∘ ⟨g⟩ = g
+        """
         if g.cod != self.H0:
             raise ValueError("Morphisme must have the right codomain.")
         if not self.test_equalize(g):
@@ -1953,12 +2139,14 @@ class Equalizer(Construct):
 
 
 class Coproduct(Construct):
-    """Return the coproduct of two hypergraphs H0 and H1
-    S_{H0 + H1} = S_{H0} + S_{H1}
-    T_{H0 + H1} = T_{H0} + T_{H1}
-    L_{H0 + H1} = L_{H0} + L_{H1}
-    node_map_{H0 + H1} = node_map_{H0} + node_map_{H1}
-    link_map_{H0 + H1} = link_map_{H0} + link_map_{H1}
+    """
+    Return the coproduct of two hypergraphs H0 and H1:
+
+        - S_{H0 + H1} = S_{H0} + S_{H1}
+        - T_{H0 + H1} = T_{H0} + T_{H1}
+        - L_{H0 + H1} = L_{H0} + L_{H1}
+        - σ_{H0 + H1} = σ_{H0} + σ_{H1}
+        - λ_{H0 + H1} = λ_{H0} + λ_{H1}
     """
 
     def __init__(self, H0: Representable, H1: Representable):
@@ -1985,7 +2173,11 @@ class Coproduct(Construct):
         )
 
     def inj_0(self) -> HypergraphMonomorphism:
-        """Return the injection in0 : H0 ↣ H0 + H1"""
+        """
+        Return the injection 
+        
+            in0 : H0 ↣ H0 + H1
+        """
         node_map = self.Nodes.inj_0()
         tie_map = self.Ties.inj_0()
         link_map = self.Links.inj_0()
@@ -1997,7 +2189,11 @@ class Coproduct(Construct):
         )
 
     def inj_1(self) -> HypergraphMonomorphism:
-        """Return the injection in1 : H1 ↣ H0 + H1"""
+        """
+        Return the injection 
+        
+            in1 : H1 ↣ H0 + H1
+        """
         node_map = self.Nodes.inj_1()
         tie_map = self.Ties.inj_1()
         link_map = self.Links.inj_1()
@@ -2012,8 +2208,15 @@ class Coproduct(Construct):
         self, f1: HypergraphMorphism, f2: HypergraphMorphism
     ) -> HypergraphMorphism:
         """For a cocone f1 : H0 → C, f2 : H1 → C,
-        return the unique morphism ⟨f1,f2⟩ : H0 + H1 → C
-        such that ⟨f1,f2⟩ ∘ inj_0 = f1 and ⟨f1,f2⟩ ∘ inj_1 = f2."""
+        return the unique morphism 
+        
+            ⟨f1,f2⟩ : H0 + H1 → C
+
+
+        such that 
+        
+            - ⟨f1,f2⟩ ∘ inj_0 = f1 
+            - ⟨f1,f2⟩ ∘ inj_1 = f2."""
         if f1.dom != self.H0 or f2.dom != self.H1 or f1.cod != f2.cod:
             raise ValueError("Les morphismes ne sont pas adaptés au coproduct.")
         else:
@@ -2028,7 +2231,11 @@ class Coproduct(Construct):
         )
     
     def braiding(self) -> HypergraphIsomorphism:
-        """Return the braiding isomorphism β : H0 + H1 ≃ H1 + H0"""
+        """
+        Return the braiding isomorphism 
+
+            β : H0 + H1 ≃ H1 + H0
+        """
         braid = Coproduct(self.H1, self.H0)
         node_map = self.Nodes.braiding()
         tie_map = self.Ties.braiding()
@@ -2041,7 +2248,11 @@ class Coproduct(Construct):
         )
 
 def unitor_coproduct_left(H: Representable) -> HypergraphIsomorphism:
-    """Return the left unitor isomorphism λ : 0 + H ≃ H"""
+    """
+    Return the left unitor isomorphism
+
+        λ : 0 + H ≃ H
+    """
     unitor = Coproduct(Initial(), H)
     node_map = seth.unitor_coproduct_left(H.Nodes)
     tie_map = seth.unitor_coproduct_left(H.Ties)
@@ -2054,7 +2265,11 @@ def unitor_coproduct_left(H: Representable) -> HypergraphIsomorphism:
     )
 
 def unitor_coproduct_right(H: Representable) -> HypergraphIsomorphism:
-    """Return the right unitor isomorphism ρ : H + 0 ≃ H"""
+    """
+    Return the right unitor isomorphism
+
+        ρ : H + 0 ≃ H
+    """
     unitor = Coproduct(H, Initial())
     node_map = seth.unitor_coproduct_right(H.Nodes)
     tie_map = seth.unitor_coproduct_right(H.Ties)
@@ -2069,7 +2284,10 @@ def unitor_coproduct_right(H: Representable) -> HypergraphIsomorphism:
 def associator_coproduct(
     H0: Representable, H1: Representable, H2: Representable
     ) -> HypergraphIsomorphism:
-    """Return the associator isomorphism α : (H0 + H1) + H2 ≃ H0 + (H1 + H2)"""
+    """Return the associator isomorphism
+
+        α : (H0 + H1) + H2 ≃ H0 + (H1 + H2)
+    """
     leftcoprod = Coproduct(Coproduct(H0, H1), H2)
     rightcoprod = Coproduct(H0, Coproduct(H1, H2))
     node_map = seth.associator_coproduct(H0.Nodes, H1.Nodes, H2.Nodes)
@@ -2087,7 +2305,10 @@ def associator_coproduct(
 def coproduct_maps(
     f1: HypergraphMorphism, f2: HypergraphMorphism
 ) -> HypergraphMorphism:
-    """Return the coproduct morphism f1 + f2 : H0 + H1 → G0 + G1"""
+    """Return the coproduct morphism
+
+        f1 + f2 : H0 + H1 → G0 + G1
+    """
     node_map = seth.coproduct_maps(f1.node_map, f2.node_map)
     tie_map = seth.coproduct_maps(f1.tie_map, f2.tie_map)
     link_map = seth.coproduct_maps(f1.link_map, f2.link_map)
@@ -2103,12 +2324,13 @@ def coproduct_maps(
 
 
 class FiniteCoproduct(Construct):
-    """Return the finite coproduct of a list of hypergraphs
-    S_{H0 + H1 + ... + Hn} = S_{H0} + S_{H1} + ... + S_{Hn}
-    T_{H0 + H1 + ... + Hn} = T_{H0} + T_{H1} + ... + T_{Hn}
-    L_{H0 + H1 + ... + Hn} = L_{H0} + L_{H1} + ... + L_{Hn}
-    node_map_{H0 + H1 + ... + Hn} = node_map_{H0} + node_map_{H1} + ... + node_map_{Hn}
-    link_map_{H0 + H1 + ... + Hn} = link_map_{H0} + link_map_{H1} + ... + link_map_{Hn}
+    """Return the finite coproduct H0 + H1 + ... + Hn of a list of hypergraphs
+
+        - S_{H0 + H1 + ... + Hn} = S_{H0} + S_{H1} + ... + S_{Hn}
+        - T_{H0 + H1 + ... + Hn} = T_{H0} + T_{H1} + ... + T_{Hn}
+        - L_{H0 + H1 + ... + Hn} = L_{H0} + L_{H1} + ... + L_{Hn}
+        - σ_{H0 + H1 + ... + Hn} = σ_{H0} + σ_{H1} + ... + σ_{Hn}
+        - λ_{H0 + H1 + ... + Hn} = λ_{H0} + λ_{H1} + ... + λ_{Hn}
     """
 
     def __init__(self, hypergraph_list: list[Representable]):
@@ -2133,7 +2355,10 @@ class FiniteCoproduct(Construct):
             )
 
     def inj(self, index: int) -> HypergraphMorphism:
-        """Return the injection in_i : Hi ↣ H0 + H1 + ... + Hn"""
+        """Return the injection
+
+            in_i : Hi ↣ H0 + H1 + ... + Hn
+        """
         if index < 0 or index >= len(self.hypergraph_list):
             raise IndexError("Index d'injection hors limites.")
         H = self.hypergraph_list[index]
@@ -2148,8 +2373,12 @@ class FiniteCoproduct(Construct):
         self, morphism_list: list[HypergraphMorphism]
     ) -> HypergraphMorphism:
         """For a cocone f_i : Hi → C,
-        return the unique morphism ⟨f_i⟩ : H0 + H1 + ... + Hn → C
-        such that ⟨f_i⟩ ∘ inj_i = f_i for all i.
+        return the unique morphism 
+
+            ⟨f_i⟩ : H0 + H1 + ... + Hn → C
+
+        such that for all i
+            ⟨f_i⟩ ∘ inj_i = f_i 
         """
         if len(morphism_list) != len(self.hypergraph_list):
             raise ValueError(
@@ -2213,7 +2442,11 @@ class Pushout(Construct):
         )
 
     def inj_0(self) -> HypergraphMorphism:
-        """Return the injection in0 : H0 → H0 +^f0,f1_H2 H1"""
+        """
+        Return the injection 
+
+            in0 : H0 → H0 +^f0,f1_H2 H1
+        """
         return HypergraphMorphism(
             dom=self.H0,
             cod=self,
@@ -2226,7 +2459,10 @@ class Pushout(Construct):
         )
 
     def inj_1(self) -> HypergraphMorphism:
-        """Return the injection in1 : H1 → H0 +^f0,f1_H2 H1"""
+        """Return the injection
+
+            in1 : H1 → H0 +^f0,f1_H2 H1
+        """
         return HypergraphMorphism(
             dom=self.H1,
             cod=self,
@@ -2242,8 +2478,13 @@ class Pushout(Construct):
         self, g0: HypergraphMorphism, g1: HypergraphMorphism
     ) -> HypergraphMorphism:
         """For a cocone g0 : H0 → C, g1 : H1 → C such that g0 ∘ f0 = g1 ∘ f1,
-        return the unique morphism ⟨g0,g1⟩ : H0 +^f0,f1_H2 H1 → C
-        such that ⟨g0,g1⟩ ∘ inj_0 = g0 and ⟨g0,g1⟩ ∘ inj_1 = g1."""
+        return the unique morphism 
+
+             ⟨g0,g1⟩ : H0 +^f0,f1_H2 H1 → C
+
+        such that 
+
+             ⟨g0,g1⟩ ∘ inj_0 = g0 and ⟨g0,g1⟩ ∘ inj_1 = g1."""
         if g0.dom != self.H0:
             raise ValueError(f"{g0.name} does not have the correct domain hypergraph.")
         if g1.dom != self.H1:
@@ -2298,7 +2539,8 @@ class Coequalizer(Construct):
         )
 
     def proj(self) -> HypergraphEpimorphism:
-        """Return the projection π : H1 → H1 /~_f0,f1 H0"""
+        """Return the projection 
+         π : H1 → H1 /~_f0,f1 H0"""
         return HypergraphEpimorphism(
             dom=self.H1,
             cod=self,
@@ -2307,7 +2549,7 @@ class Coequalizer(Construct):
                 self.T_coeq.projection(),
                 self.L_coeq.projection(),
             ),
-            name=f"π_({self.H1.name}/~_{self.f0.name},{self.f1.name})",
+            name=f"π_({self.H1.name}/~_({self.f0.name},{self.f1.name}))",
         )
 
     def test_coequalize(self, g: HypergraphMorphism) -> bool:
@@ -2317,8 +2559,13 @@ class Coequalizer(Construct):
         return composition(self.f0, g) == composition(self.f1, g)
 
     def universal_solution(self, g: HypergraphMorphism) -> HypergraphMorphism:
-        """For a map g : H1 → C such that g ∘ f0 = g ∘ f1, return the unique morphism ⟨g⟩ : H1 /~_f0,f1 H0 → C
-        such that ⟨g⟩ ∘ π = g."""
+        """For a map g : H1 → C such that g ∘ f0 = g ∘ f1, return the unique morphism 
+
+             ⟨g⟩ : Coeq(f0,f1) → C
+
+        such that 
+
+            ⟨g⟩ ∘ π = g."""
         if g.dom != self.H1:
             raise ValueError("Morphisme must have the right domain.")
         if not self.test_coequalize(g):
@@ -2344,15 +2591,18 @@ class Coequalizer(Construct):
 
 def Omega_hyp() -> Hypergraph:
     """Return the subobject classifier Omega in the category of hypergraphs.
-    S_Ω = {True,False} (the subobject classifier of Set)
-    L_Ω = {True,False} (the subobject classifier of Set)
-    T_Ω = {t_∅, t_sigma, t_lambda, t_sigma_lambda, t_top}
+
+        - S_Ω = {True,False} (the subobject classifier of Set)
+        - L_Ω = {True,False} (the subobject classifier of Set)
+        - T_Ω = {t_∅, t_sigma, t_lambda, t_sigma_lambda, t_top}
+
     the 5 possible configurations for a tie t : x ∈ l :
-        - t_∅ : neither t, x nor l are in the subobject
-        - t_sigma : only x is in the subobject
-        - t_lambda : only l is in the subobject
-        - t_sigma_lambda : both x and l are in the subobject, but not t
-        - t_top : t, x and l are all in the subobject
+
+    - t_∅ : neither t, x nor l are in the subobject
+    - t_sigma : only x is in the subobject
+    - t_lambda : only l is in the subobject
+    - t_sigma_lambda : both x and l are in the subobject, but not t
+    - t_top : t, x and l are all in the subobject
     """
     return hypergraph_from_dict(
         dic={
@@ -2503,9 +2753,11 @@ def subobjet_conforme(H: Representable) -> NamedSet:
 
 class FunnyTensor(Construct):
     """Return the funny tensor product of two hypergraphs H0 and H1
-    S_{H0 □ H1} = S_{H0} × S_{H1}
-    T_{H0 □ H1} = (S_{H0} × T_{H1}) + (T_{H0} × S_{H1})
-    L_{H0 □ H1} = (S_{H0} × L_{H1}) + (L_{H0} × S_{H1})
+
+        - S_{H0 □ H1} = S_{H0} × S_{H1}
+        - T_{H0 □ H1} = (S_{H0} × T_{H1}) + (T_{H0} × S_{H1})
+        - L_{H0 □ H1} = (S_{H0} × L_{H1}) + (L_{H0} × S_{H1})
+
     """
 
     def __init__(self, H0: Representable, H1: Representable):
@@ -2570,8 +2822,10 @@ class FunnyTensor(Construct):
 
     def canonical_elements_naming(self) -> Hypergraph:
         """Rename the links and ties of H0 □ H1 with their canonical form, i.e.
-        x ⊗ r : (x,y) ∈ x ⊗ k if x ∈ S_H0 and r : y ∈ k in H1
-        t ⊗ y : (x,y) ∈ t ⊗ k if t : x ∈ k in H0 and y ∈ S_H1
+
+        - x ⊗ r : (x,y) ∈ x ⊗ k if x ∈ S_H0 and r : y ∈ k in H1
+        - t ⊗ y : (x,y) ∈ t ⊗ k if t : x ∈ k in H0 and y ∈ S_H1
+
         """
         tie_renaming = lambda t: f"{t[1][0]} ⊗ {t[1][1]}"
         link_renaming = lambda l: f"{l[1][0]} ⊗ {l[1][1]}"
@@ -2627,7 +2881,11 @@ class FunnyTensor(Construct):
 
 
 def funny_left_unitor(H: Representable) -> HypergraphIsomorphism:
-    """Return the left unitor isomorphism λ : I □ H → H,
+    """
+    Return the left unitor isomorphism
+
+         λ : I □ H → H
+
     where I is the unit object for the funny tensor product."""
     left_prod = FunnyTensor(Unit_funny(), H)
     node_map = seth.unitor_cartesian_left(H.Nodes)
@@ -2646,7 +2904,11 @@ def funny_left_unitor(H: Representable) -> HypergraphIsomorphism:
 
 
 def funny_right_unitor(H: Representable) -> HypergraphIsomorphism:
-    """Return the right unitor isomorphism ρ : H □ I → H,
+    """
+    Return the right unitor isomorphism 
+
+        ρ : H □ I → H
+
     where I is the unit object for the funny tensor product."""
     right_prod = FunnyTensor(H, Unit_funny())
     node_map = seth.unitor_cartesian_right(H.Nodes)
@@ -2667,7 +2929,11 @@ def funny_right_unitor(H: Representable) -> HypergraphIsomorphism:
 def funny_associator(
     H0: Representable, H1: Representable, H2: Representable
 ) -> HypergraphIsomorphism:
-    """Return the associator isomorphism α : (H0 □ H1) □ H2 → H0 □ (H1 □ H2)"""
+    """
+    Return the associator isomorphism
+
+        α : (H0 □ H1) □ H2 → H0 □ (H1 □ H2)
+    """
     leftpair = FunnyTensor(H0, H1)
     left_prod = FunnyTensor(leftpair, H2)
     rightpair = FunnyTensor(H1, H2)
@@ -2757,11 +3023,17 @@ def funny_associator(
 def funny_product_maps(
     f0: HypergraphMorphism, f1: HypergraphMorphism
 ) -> HypergraphMorphism:
-    """Return the morphism f0 □ f1 : H0 □ H1 → G0 □ G1
+    """
+    Return the morphism 
+        
+        f0 □ f1 : H0 □ H1 → G0 □ G1
+
     which has as components:
-    - Sf0□f1 = Sf0 × Sf1 : SH0 × SH1 → SG0 × SG1
-    - Tf0□f1 = Sf0 × Tf1 + Tf0 + Sf1 : SH0 × TH1 + TH0 + SH1 → SG0 × TG1 + TG0 + SG1
-    - Lf0□f1 = Sf0 × Lf1 + Lf0 + Sf1 : SH0 × LH1 + LH0 + SH1 → SG0 × LG1 + LG0 + SG1"""
+
+        - Sf0□f1 = Sf0 × Sf1 : SH0 × SH1 → SG0 × SG1
+        - Tf0□f1 = Sf0 × Tf1 + Tf0 × Sf1 : SH0 × TH1 + TH0 × SH1 → SG0 × TG1 + TG0 × SG1
+        - Lf0□f1 = Sf0 × Lf1 + Lf0 × Sf1 : SH0 × LH1 + LH0 × SH1 → SG0 × LG1 + LG0 × SG1
+    """
     funny_prod_dom = FunnyTensor(f0.dom, f1.dom)
     funny_prod_cod = FunnyTensor(f0.cod, f1.cod)
     node_map = seth.product_maps(f0.node_map, f1.node_map)
@@ -2793,10 +3065,11 @@ def free_prod(H: Representable) -> FunnyTensor:
 
 class FiniteFunnyTensor(Construct):
     def __init__(self, hypergraph_list: list[Representable]):
-        """Return the finite funny tensor product of a list of hypergraphs
-        S_{H0 □ H1 □ ... □ Hn} = S_{H0} × S_{H1} × ... × S_{Hn}
-        T_{H0 □ H1 □ ... □ Hn} = ∑_{i} (S_{H0} × ... × S_{H(i-1)} × T_{Hi} × S_{H(i+1)} × ... × S_{Hn})
-        L_{H0 □ H1 □ ... □ Hn} = ∑_{i} (S_{H0} × ... × S_{H(i-1)} × L_{Hi} × S_{H(i+1)} × ... × S_{Hn})
+        """Return the finite funny tensor product of a list of hypergraphs H0 □ H1 □ ... □ Hn:
+
+            - S_{H0 □ H1 □ ... □ Hn} = S_{H0} × S_{H1} × ... × S_{Hn}
+            - T_{H0 □ H1 □ ... □ Hn} = ∑_{i} (S_{H0} × ... × S_{H(i-1)} × T_{Hi} × S_{H(i+1)} × ... × S_{Hn})
+            - L_{H0 □ H1 □ ... □ Hn} = ∑_{i} (S_{H0} × ... × S_{H(i-1)} × L_{Hi} × S_{H(i+1)} × ... × S_{Hn})
         """
         self.hypergraph_list = hypergraph_list
         self.arité = len(hypergraph_list)
@@ -2862,11 +3135,16 @@ class FiniteFunnyTensor(Construct):
 
 
 def finite_funny_maps(morphism_list: list[HypergraphMorphism]) -> HypergraphMorphism:
-    """Return the morphism f0 □ f1 □ ... □ fn : H0 □ H1 □ ... □ Hn → G0 □ G1 □ ... □ Gn
+    """
+    Return the morphism 
+
+     f0 □ f1 □ ... □ fn : H0 □ H1 □ ... □ Hn → G0 □ G1 □ ... □ Gn
+
     which has as components:
-    - S(f0 □ f1 □ ... □ fn) = S(f0) × S(f1) × ... × S(fn) : S(H0) × S(H1) × ... × S(Hn) → S(G0) × S(G1) × ... × S(Gn)
-    - T(f0 □ f1 □ ... □ fn) = ∑_{i} (S(f0) × ... × S(f(i-1)) × T(fi) × S(f(i+1)) × ... × S(fn)) : ∑_{i} (S(H0) × ... × S(H(i-1)) × T(Hi) × S(H(i+1)) × ... × S(Hn)) → ∑_{i} (S(G0) × ... × S(G(i-1)) × T(Gi) × S(G(i+1)) × ... × S(Gn))
-    - L(f0 □ f1 □ ... □ fn) = ∑_{i} (S(f0) × ... × S(f(i-1)) × L(fi) × S(f(i+1)) × ... × S(fn)) : ∑_{i} (S(H0) × ... × S(H(i-1)) × L(Hi) × S(H(i+1)) × ... × S(Hn)) → ∑_{i} (S(G0) × ... × S(G(i-1)) × L(Gi) × S(G(i+1)) × ... × S(Gn))
+
+        - S(f0 □ f1 □ ... □ fn) = S(f0) × S(f1) × ... × S(fn) : S(H0) × S(H1) × ... × S(Hn) → S(G0) × S(G1) × ... × S(Gn)
+        - T(f0 □ f1 □ ... □ fn) = ∑_{i} (S(f0) × ... × S(f(i-1)) × T(fi) × S(f(i+1)) × ... × S(fn)) : ∑_{i} (S(H0) × ... × S(H(i-1)) × T(Hi) × S(H(i+1)) × ... × S(Hn)) → ∑_{i} (S(G0) × ... × S(G(i-1)) × T(Gi) × S(G(i+1)) × ... × S(Gn))
+        - L(f0 □ f1 □ ... □ fn) = ∑_{i} (S(f0) × ... × S(f(i-1)) × L(fi) × S(f(i+1)) × ... × S(fn)) : ∑_{i} (S(H0) × ... × S(H(i-1)) × L(Hi) × S(H(i+1)) × ... × S(Hn)) → ∑_{i} (S(G0) × ... × S(G(i-1)) × L(Gi) × S(G(i+1)) × ... × S(Gn))
     """
     if not morphism_list:
         return Unit_funny().identity
@@ -3030,9 +3308,9 @@ class natural_tie:
 class FunnyHomgraph(Construct):
     """Return the funny hom-graph Hom[H0, H1]_□,
     where H0 and H1 are representable hypergraphs.
-    Nodes = Hom(H0, H1)
-    Links = Prenatural transformations H0 -> H1
-    Ties = Natural ties between morphisms and prenatural transformations, i.e.
+     Nodes = Hom(H0, H1)
+     Links = Prenatural transformations H0 -> H1
+     Ties = Natural ties between morphisms and prenatural transformations, i.e.
     t : f -> alpha if for each node s in H0, the link alpha(s) in H1 has for source the image of s by the node map of H1,
     i.e. alpha(s) : H1.node_map(t(s)) ∈ alpha(s) in H1.
     """
@@ -3087,10 +3365,11 @@ class FunnyHomgraph(Construct):
 
 
 def enriched_homset(X: NamedSet, Y: NamedSet) -> Hypergraph:
-    """Return the enriched hom-set Hom[X, Y]_set, where X and Y are sets.
-    Nodes = Hom(X, Y)
-    Links = seth.Product(seth.powerset(X), seth.powerset(Y))
-    and f : X -> Y is in l_(A, B) with A ⊆ X and B ⊆ Y,
+    """Return the simple enriched hom-set Hom[X, Y]_set, where X and Y are sets.
+
+    - S_Hom[X, Y] = Hom(X, Y)
+    - L_Hom[X, Y] = P(X) x P(Y))
+    - and f : X -> Y is in l_(A, B) with A ⊆ X and B ⊆ Y,
     if for all x in A, s(x) is in B.
     """
     Nodes = HomSet(X, Y)
@@ -3128,10 +3407,12 @@ def enriched_homset(X: NamedSet, Y: NamedSet) -> Hypergraph:
 
 
 class StrongTensor(Construct):
-    """Return the strong tensor product of two hypergraphs H0 and H1
-    S_{H0 ⊠ H1} = S_{H0} × S_{H1}
-    T_{H0 ⊠ H1} = (S_{H0} × T_{H1}) + (T_{H0} × S_{H1}) + (T_{H0} × T_{H1})
-    L_{H0 ⊠ H1} = (S_{H0} × L_{H1}) + (L_{H0} × S_{H1}) + (L_{H0} × L_{H1})
+    """
+    Return the strong tensor product H0 ⊠ H1 of two hypergraphs H0 and H1
+
+        - S_{H0 ⊠ H1} = S_{H0} × S_{H1}
+        - T_{H0 ⊠ H1} = (S_{H0} × T_{H1}) + (T_{H0} × S_{H1}) + (T_{H0} × T_{H1})
+        - L_{H0 ⊠ H1} = (S_{H0} × L_{H1}) + (L_{H0} × S_{H1}) + (L_{H0} × L_{H1})
     """
 
     def __init__(self, H0: Representable, H1: Representable):
@@ -3176,11 +3457,16 @@ class StrongTensor(Construct):
 def strong_product_maps(
     f0: HypergraphMorphism, f1: HypergraphMorphism
 ) -> HypergraphMorphism:
-    """Return the morphism f0 ⊠ f1 : H0 ⊠ H1 → G0 ⊠ G1
+    """
+    For a pair of hypergraph morphisms f0 : H0 → G0 and f1 : H1 → G1, return the morphism 
+
+         f0 ⊠ f1 : H0 ⊠ H1 → G0 ⊠ G1
+
     which has as components:
-    - Sf0⊠f1 = Sf0 × Sf1 : SH0 × SH1 → SG0 × SG1
-    - Tf0⊠f1 = Sf0 × Tf1 + Tf0 + Sf1 + Tf0 x Tf1 : SH0 × TH1 + TH0 + SH1 + TH0 x TH1 → SG0 × TG1 + TG0 + SG1 + TG0 x TG1
-    - Lf0⊠f1 = Sf0 × Lf1 + Lf0 + Sf1 + Lf0 x Lf1 : SH0 × LH1 + LH0 + SH1 + LH0 x LH1 → SG0 × LG1 + LG0 + SG1 + LG0 x LG1
+
+        - Sf0⊠f1 = Sf0 × Sf1 : SH0 × SH1 → SG0 × SG1
+        - Tf0⊠f1 = Sf0 × Tf1 + Tf0 + Sf1 + Tf0 x Tf1 : SH0 × TH1 + TH0 + SH1 + TH0 x TH1 → SG0 × TG1 + TG0 + SG1 + TG0 x TG1
+        - Lf0⊠f1 = Sf0 × Lf1 + Lf0 + Sf1 + Lf0 x Lf1 : SH0 × LH1 + LH0 + SH1 + LH0 x LH1 → SG0 × LG1 + LG0 + SG1 + LG0 x LG1
     """
     strong_prod_dom = StrongTensor(f0.dom, f1.dom)
     strong_prod_cod = StrongTensor(f0.cod, f1.cod)
@@ -3211,10 +3497,12 @@ def strong_product_maps(
 
 
 class FiniteStrongTensor(Construct):
-    """Return the finite strong tensor product of a list of hypergraphs
-    S_(⊠_i H_i) = Π_i S_H_i
-    T_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } T_{H_j} × Π_{j ∉ J} × S_{H_i})
-    L_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } L_{H_j} × Π_{j ∉ J} × S_{H_i})
+    """
+    Return the finite strong tensor product H0 ⊠ H1 ⊠ ... ⊠ Hn of a list of hypergraphs H0 ⊠ H1 ⊠ ... ⊠ Hn:
+
+        - S_(⊠_i H_i) = Π_i S_H_i
+        - T_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } T_{H_j} × Π_{j ∉ J} × S_{H_i})
+        - L_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } L_{H_j} × Π_{j ∉ J} × S_{H_i})
     """
 
     def __init__(self, hypergraph_list: list[Representable]):
@@ -3287,11 +3575,17 @@ class FiniteStrongTensor(Construct):
 
 
 def finite_strong_maps(morphism_list: list[HypergraphMorphism]) -> HypergraphMorphism:
-    """Return the morphism f0 ⊠ f1 ⊠ ... ⊠ fn : H0 ⊠ H1 ⊠ ... ⊠ Hn → G0 ⊠ G1 ⊠ ... ⊠ Gn
+    """
+    For a list of morphisms f_i : H_i → G_i, return the morphism
+
+         f0 ⊠ f1 ⊠ ... ⊠ fn : H0 ⊠ H1 ⊠ ... ⊠ Hn → G0 ⊠ G1 ⊠ ... ⊠ Gn
+
     which has as components:
-    - S_(⊠_i H_i) = Π_i S_f_i
-    - T_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } T_{f_j} × Π_{j ∉ J} × S_{f_i})
-    - L_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } L_{f_j} × Π_{j ∉ J} × S_{f_i})"""
+
+        - S_(⊠_i H_i) = Π_i S_f_i
+        - T_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } T_{f_j} × Π_{j ∉ J} × S_{f_i})
+        - L_(⊠_i H_i) = ∑_(J⊆I, J≠∅) (Π_{j∈J } L_{f_j} × Π_{j ∉ J} × S_{f_i})
+    """
     if not morphism_list:
         return Unit_funny().identity
     else:
@@ -3337,7 +3631,9 @@ class StraightTensor(Construct):
     def __init__(self, H0: Representable, H1: Representable):
         """Return the straight tensor product of two hypergraphs H0 and H1
         defined as the hypergraph
-        H0 ⬦ H1 = (H0* □ H1*)*."""
+
+            H0 ⬦ H1 = (H0* □ H1*)*
+        """
         self.H0 = H0
         self.H1 = H1
         self._obj = FunnyTensor(H0.dual, H1.dual).dual

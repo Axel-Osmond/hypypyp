@@ -10,20 +10,18 @@ import itertools as it
 # Base types
 
 ## -- Representables --
-"""A representable is an object that can be represented by an underlying set.
-It will be the parent class of:
-- NamedSet, which is a set with a name and a custom display method;
-- Classes for universal constructions like limits and colimits, 
-    which will have an underlying NamedSet together with structure
-- homsets and some distributors"""
 
 
 class Representable(ABC):
     """A representable is an object that can be represented by an underlying set.
-    Any class inheriting from Representable must implement the obj property,
-    which returns the underlying set as a NamedSet.
+    It will be the parent class of:
+
+    - NamedSet, which is a set with a name and a custom display method;
+    - Classes for universal constructions like limits and colimits, which will have an underlying NamedSet together with structure
+    - homsets and some distributors
 
     This superclass promises:
+
     - that the underlying set is accessible via the obj property
     - that this underlying set is a NamedSet
     - that the representable has a name, which is the name of the underlying set"""
@@ -85,9 +83,8 @@ class Representable(ABC):
 
 
 class Construct(Representable):
-    """Construct represent the result of a universal construction
-    It is a representable, hence has a name
-    .obj returns an underlying object which is always a NamedSet.
+    """A construct represents the result of a universal construction
+    It is a representable, hence has a name, .obj returns an underlying object which is always a NamedSet.
     It is eligible as a domain or codomain of functions, and can be used in further constructions.
     It factorizes the method for iter, repr and len"""
 
@@ -119,7 +116,7 @@ class FrozenSetAffiche(frozenset):
 
     def __repr__(self):
         """Display the elements of the frozenset in a sorted order.
-        Example: {a, b, c} instead of {c, a, b} or {b, c, a}."""
+         Example: {a, b, c} instead of {c, a, b} or {b, c, a}."""
         parts = [
             repr(x) for x in sorted(self, key=lambda x: (type(x).__name__, repr(x)))
         ]
@@ -157,10 +154,9 @@ class NamedSet(Representable):
     def __init__(self, elements: set | frozenset | FrozenSetAffiche, name: str):
         """Initialize a NamedSet with a given set and name:
 
-        Parameters:
-        -----------
-        - elements: a set, frozenset, or FrozenSetAffiche representing the elements of the set.
-        - name: a string representing the name of the set.
+        Args:
+            elements: a set, frozenset, or FrozenSetAffiche representing the elements of the set.
+            name: a string representing the name of the set.
 
         The constructor ensures that the underlying set is stored as a FrozenSetAffiche
         """
@@ -285,35 +281,26 @@ class Setoid(Construct):
     The projection is the function that sends each element of X to its equivalence class.
     Uses a union-find data structure to compute the equivalence classes efficiently.
     Used to compute colimits of sets or present structures by generators and relations.
+        
+    Args:
+        X: a Representable representing the underlying set of the setoid.
+        eq: a set of pairs (x, y) of elements of X
+                representing the generating equalities x = y.
+        name: an optional name for the setoid.
 
-    Methods
-    -------
-    - class_of(x): return the equivalence class of x as a frozenset.
-
+        The underlying object is the quotient set.
     """
 
     def __init__(self, X: Representable, eq: set[tuple]):
-        """Initialize a setoid with a set of generators
-        and a set of generating equalities.
-
-        Parameters:
-        -----------
-        - X: a Representable representing the underlying set of the setoid.
-        - eq: a set of pairs (x, y) of elements of X
-        representing the generating equalities x = y.
-        - name: an optional name for the setoid.
-
-        The underlying object is the quotient set."""
         self.generator = X
         self.X = X.obj
         self._name = f"({X.name}/{eq})"
         self.eq = set(eq)
 
-        # Lightweight check: generators must range over X
         hors_de_X = {(x, y) for (x, y) in self.eq if x not in X or y not in X}
         if hors_de_X:
             raise ValueError(
-                f"Certaines égalités génératrices portent hors de {X.name} : {hors_de_X}"
+                f"Some generating equalities are out of {X.name}: {hors_de_X}"
             )
 
         # Union-find
@@ -388,7 +375,15 @@ class Setoid(Construct):
 
     def projection(self) -> NamedFunction:
         """Return the projection function from X to the quotient,
-        sending each element to its class."""
+        sending each element to its class
+
+            q : X -> X/eq
+
+        defined as
+
+            q(x) = [x] 
+
+        """
         Q = self.quotient()
         return NamedFunction(
             dom=self.X,
@@ -471,16 +466,17 @@ class NamedFunction:
     A function f : X -> Y is represented by a rule or a table
     that assigns to each element x of X an element f(x) of Y.
 
-    'table' can be given as :
-    - a mapping (e.g., dict)
-    - or as a callable (e.g., lambda).
+    Args: 
 
-    - .entry_mode detects the mode of entry
-    - .values stores the values of the function as a dict
-    - ._verify_values() checks that the function is well-defined
-    - .__call__(x) makes the function vallable, returning f(x)
-    i.e., that it is total and that the images are in the codomain.
-    - .__eq__(other) based on equality of values, domain and codomain.
+        dom: the domain as a Representable
+        cod: the codomain as a Representable
+        table: a mapping defining the function; be given as :
+
+            - a mapping (e.g., dict)
+            - or as a callable (e.g., lambda).
+
+        name: an optional name for the function
+
 
     V1 : all sets are finite,
     so we can always define the function by enumerating the domain and codomain.
@@ -495,17 +491,17 @@ class NamedFunction:
     ):
         """Initialize a named function:
 
-        Parameters:
-        -----------
-        - dom and cod: the domain and codomain as Representable instances
-        - table: a mapping or a callable defining the function
-        - name: an optional name for the function
+    Args:
 
-        Examples:
-        ---------
-        - If dom.set = {a, b} and cod.set = {0, 1},
+        dom and cod: the domain and codomain as Representable instances
+        table: a mapping or a callable defining the function
+        name: an optional name for the function
+
+    Examples: 
+
+        If dom.set = {a, b} and cod.set = {0, 1},
         one can define f by a dict: table = {a: 0, b: 1}
-        - If dom.set = {0, 1} and cod.set = {'x0', 'x1'},
+        If dom.set = {0, 1} and cod.set = {'x0', 'x1'},
         one can define f by a lambda: table = lambda i: f"x{i}"
         """
         self.dom = dom
@@ -524,6 +520,7 @@ class NamedFunction:
 
     def _verify_values(self) -> None:
         """Verify that the values are well-defined, i.e.:
+
         - that the function is total
         - and that the images are in the codomain."""
         dom_keys = set(self.dom)
@@ -604,7 +601,10 @@ class NamedFunction:
 
     def injective_part(self) -> NamedFunction:
         """Return the injective part of the function
-        Im(f) → Y, defined by the same rule as f
+
+            Im(f) → Y,
+        
+        defined by the same rule as f
         but with domain restricted to the image."""
         Im = self.image()
         values_image = {x: x for x in Im}
@@ -631,7 +631,8 @@ class NamedFunction:
     ## Displays and comparisons
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X → Y"."""
+        """Return a symbolic representation of the function, e.g., 
+            f : X → Y """
         return f"{self.name} : {self.dom.name} → {self.cod.name} "
 
     def graph_repr(self) -> str:
@@ -731,7 +732,8 @@ def chaines(D: set, n: int) -> set[tuple[NamedFunction, ...]]:
     """D: set of named functions
     set of composable chains of length n,
     i.e., tuples (f_0, ..., f_{n-1})
-    such that cod(f_i) = dom(f_{i+1}) for all i."""
+    such that 
+     cod(f_i) = dom(f_{i+1}) for all i."""
     chaines_brutes = it.product(D, repeat=n)
     chaines = set()
     for chaine in chaines_brutes:
@@ -756,8 +758,11 @@ def composition(f: NamedFunction, g: NamedFunction) -> NamedFunction:
 
 
 def composition_chaine(chaine: Sequence[NamedFunction]) -> NamedFunction:
-    """Return the composition of a chain of composable functions,
-    defined by (f_{n-1} ∘ ... ∘ f_0)(x) = f_{n-1}(...(f_0(x))...)."""
+    """Return the composition of a chain of composable functions, defined by 
+
+     (f_{n-1} ∘ ... ∘ f_0)(x) = f_{n-1}(...(f_0(x))...)
+    
+    """
     chaine_tuple: tuple[NamedFunction, ...] = tuple(chaine)
     if len(chaine_tuple) == 0:
         raise ValueError("The chain is empty.")
@@ -823,7 +828,12 @@ class Injection(NamedFunction):
             )
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X ↣ Y"."""
+        """
+        Return a symbolic representation of the injection, e.g., 
+            
+            f : X ↣ Y
+
+        """
         return f"{self.name} : {self.dom.name} ↣ {self.cod.name} "
 
     @classmethod
@@ -855,7 +865,12 @@ class Surjection(NamedFunction):
             )
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X ↠ Y"."""
+        """
+        Return a symbolic representation of the surjection, e.g.,
+          
+            f : X ↠ Y
+
+        """
         return f"{self.name} : {self.dom.name} ↠ {self.cod.name} "
 
     @classmethod
@@ -865,7 +880,15 @@ class Surjection(NamedFunction):
 
     def sections(self) -> NamedSet:
         """Return the set of sections of the surjection,
-        i.e., the functions s : cod -> dom such that f ∘ s = id_cod."""
+        i.e., the functions  
+
+            s : cod -> dom 
+
+        such that 
+
+            f ∘ s = id_cod
+            
+        """
         sections = set()
         index = sorted(self.cod, key=str)
         fibers = [sorted(self.fiber(y), key=str) for y in index]
@@ -904,7 +927,12 @@ class Bijection(NamedFunction):
         )
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., "f : X ≃ Y"."""
+        """
+        Return a symbolic representation of the bijection, e.g., 
+
+            f : X ≃ Y
+
+        """
         return f"{self.name} : {self.dom.name} ≃ {self.cod.name} "
 
     @classmethod
@@ -969,14 +997,25 @@ class HomSet(Construct):
 
 
 def currying(A: Representable, B: Representable, C: Representable) -> Bijection:
-    """Return the currying isomorphism between Hom(A x B, C) and Hom(A, Hom(B, C))."""
+    """
+    Return the currying isomorphism 
+
+     Hom(A x B, C) ≃ Hom(A, Hom(B, C))
+    
+    """
     hom_AB_C = HomSet(Product(A, B), C)
     hom_A_hom_BC = HomSet(A, HomSet(B, C))
     hom_B_C = HomSet(B, C)
 
     def to_curried(f: NamedFunction) -> NamedFunction:
-        """Given f : A x B → C, return the curried function g : A → Hom(B, C)
-        defined by g(a)(b) = f(a, b)."""
+        """Given f : A x B → C, 
+        return the curried function 
+
+         g : A → Hom(B, C)
+         
+        defined by 
+
+         g(a)(b) = f(a, b)."""
 
         def curr(a):
             table = {b: f((a, b)) for b in B}
@@ -1029,7 +1068,12 @@ class Terminal(Construct):
         self._obj = NamedSet(self.elements, self.name)
 
     def unique_map(self, A: Representable) -> NamedFunction:
-        """Return the unique function !_A : A → 1, defined by f(a) = *."""
+        """
+        Return the unique function 
+
+            !_A : A → 1
+
+        defined by f(a) = *."""
         regle_unique = lambda x: "*"
         unique = NamedFunction(dom=A, cod=self, table=regle_unique, name=f"!_{A.name}")
         if A.obj.set == set():
@@ -1059,7 +1103,7 @@ def terminal_isomorphism(X: Representable) -> Bijection:
 
 
 class Product(Construct):
-    """The binary product of two named sets X0 and X1 is the set of pairs
+    """Return the binary product X0 x X1 of two named sets X0 and X1, that is the set of pairs
     (a, b) with a in X0 and b in X1"""
 
     def __init__(self, X0: Representable, X1: Representable):
@@ -1083,18 +1127,40 @@ class Product(Construct):
         self._obj = NamedSet(self.elements, self.name)
 
     def proj_0(self) -> Surjection:
-        """Return the first projection from the product to X0, defined by p0(a, b) = a."""
+        """
+        Return the first projection 
+
+            proj_0 : X0 x X1 → X0
+
+        defined by 
+
+            p0(a, b) = a
+        """
         proj_0 = lambda pair: pair[0]
         return Surjection(dom=self, cod=self.X0, table=proj_0, name=f"p0_{self.name}")
 
     def proj_1(self) -> Surjection:
-        """Return the second projection from the product to X1, defined by p1(a, b) = b."""
+        """
+        Return the second projection 
+
+            proj_1 : X0 x X1 → X1 
+
+        defined by 
+
+            p1(a, b) = b
+        """
         proj_1 = lambda pair: pair[1]
         return Surjection(dom=self, cod=self.X1, table=proj_1, name=f"p1_{self.name}")
 
     def universal_solution(self, f0: NamedFunction, f1: NamedFunction) -> NamedFunction:
         """Suppose f0 : C → X0 and f1 : C → X1 are two functions with the same domain C.
-        Returns the unique function u : C → X0 x X1 such that p0 ∘ u = f0 and p1 ∘ u = f1.
+        Returns the unique function 
+
+            u : C → X0 x X1 
+
+        such that 
+
+            p0 ∘ u = f0 and p1 ∘ u = f1
         """
         if f0.cod != self.X0 or f1.cod != self.X1:
             raise ValueError(
@@ -1109,7 +1175,15 @@ class Product(Construct):
         )
 
     def braiding(self) -> Bijection:
-        """Return the braiding isomorphism X0 x X1 ≃ X1 x X0, defined by i(a, b) = (b, a)."""
+        """
+        Return the braiding isomorphism 
+
+            β : X0 x X1 ≃ X1 x X0
+
+        defined by
+
+            β(a, b) = (b, a)
+        """
         braid = Product(self.X1, self.X0)
         regle_braid = lambda pair: (pair[1], pair[0])
         return Bijection(
@@ -1121,14 +1195,30 @@ class Product(Construct):
 
 
 def unitor_cartesian_left(X: Representable) -> Bijection:
-    """Return the left unitor isomorphism 1 x X ≃ X, defined by λ(*, x) = x."""
+    """
+    Return the left unitor isomorphism 
+
+        λ : 1 x X ≃ X
+
+    defined by 
+
+        λ(*, x) = x
+    """
     unitor = Product(Terminal(), X)
     regle_unitor = lambda pair: pair[1]
     return Bijection(dom=unitor, cod=X, table=regle_unitor, name=f"λ_{X.name}")
 
 
 def unitor_cartesian_right(X: Representable) -> Bijection:
-    """Return the right unitor isomorphism X x 1 ≃ X, defined by ρ(x, *) = x."""
+    """
+    Return the right unitor isomorphism 
+
+        ρ : X x 1 ≃ X
+
+    defined by 
+
+        ρ(x, *) = x
+    """
     unitor = Product(X, Terminal())
     regle_unitor = lambda pair: pair[0]
     return Bijection(dom=unitor, cod=X, table=regle_unitor, name=f"ρ_{X.name}")
@@ -1137,8 +1227,15 @@ def unitor_cartesian_right(X: Representable) -> Bijection:
 def associator_cartesian(
     X: Representable, Y: Representable, Z: Representable
 ) -> Bijection:
-    """Return the associator isomorphism (X x Y) x Z ≃ X x (Y x Z),
-    defined by α((x, y), z) = (x, (y, z))."""
+    """
+    Return the associator isomorphism
+
+        α : (X x Y) x Z ≃ X x (Y x Z)
+
+    defined by 
+
+        α((x, y), z) = (x, (y, z))
+    """
     leftpair = Product(X, Y)
     prod_gauche = Product(leftpair, Z)
     rightpair = Product(Y, Z)
@@ -1152,14 +1249,25 @@ def associator_cartesian(
     )
 
 def diagonal(X: Representable) -> NamedFunction:
-    """Return the diagonal function Δ : X → X x X, defined by Δ(x) = (x, x)."""
+    """
+    Return the diagonal function 
+
+    Δ : X → X x X
+
+    defined by 
+
+        Δ(x) = (x, x)
+    """
     product = Product(X, X)
     regle_diag = lambda x: (x, x)
     return Injection(dom=X, cod=product, table=regle_diag, name=f"Δ_{X.name}")
 
 def product_maps(f: NamedFunction, g: NamedFunction) -> NamedFunction:
-    """Return the product of two functions f : A0 → B0 and g : A1 → B1,
-    defined by (f x g)(a0, a1) = (f(a0), g(a1))."""
+    """
+    Return the product of two functions f : A0 → B0 and g : A1 → B1, defined by 
+
+        (f x g)(a0, a1) = (f(a0), g(a1))
+    """
     product_dom = Product(f.dom, g.dom)
     product_cod = Product(f.cod, g.cod)
     regle_prod = lambda pair: (f(pair[0]), g(pair[1]))
@@ -1235,8 +1343,10 @@ class FiniteProduct(Construct):
     def universal_solution(self, list_f: list[NamedFunction]) -> NamedFunction:
         """Suppose list_f is a list of functions f_i : C -> A_i
         where A_i are the operands of the product.
-        Return the unique function u : C -> A_0 x ... x A_{n-1}
-        such that p_i ∘ u = f_i for all i."""
+        Return the unique function 
+         u : C -> A_0 x ... x A_{n-1}
+        such that 
+         p_i ∘ u = f_i for all i."""
         if len(list_f) != self.arity:
             raise ValueError(
                 "The number of functions must match the arity of the product."
@@ -1259,8 +1369,9 @@ class FiniteProduct(Construct):
 
 
 def finite_product_maps(list_f: list[NamedFunction]) -> NamedFunction:
-    """Return the product of a list of functions f_i : A_i → B_i,
-    defined by (f_0 x ... x f_{n-1})(a_0, ..., a_{n-1}) = (f_0(a_0), ..., f_{n-1}(a_{n-1})).
+    """Return the product of a list of functions f_i : A_i → B_i, defined by 
+
+        (f_0 x ... x f_{n-1})(a_0, ..., a_{n-1}) = (f_0(a_0), ..., f_{n-1}(a_{n-1})).
     """
     arity = len(list_f)
     product_dom = FiniteProduct([f.dom for f in list_f])
@@ -1275,8 +1386,8 @@ def finite_product_maps(list_f: list[NamedFunction]) -> NamedFunction:
 
 
 def iterated_binary_product(liste: list[Representable]) -> Representable:
-    """Return the iterated binary product of a list of NamedSet,
-    defined by (((A_0 x A_1) x A_2) x ... ) x A_{n-1}."""
+    """Return the iterated binary product of a list of NamedSet (((A_0 x A_1) x A_2) x ... ) x A_{n-1}
+    """
     if len(liste) == 0:
         return Terminal()
     elif len(liste) == 1:
@@ -1356,8 +1467,12 @@ class Pullback(Construct):
 
     def proj_0(self):
         """Return the first projection
-        p0 : X0 x_{X2} X1 → X0,
-        defined by p0(x, y) = x."""
+
+            p0 : X0 x_{X2} X1 → X0
+
+        defined by 
+
+            p0(x, y) = x."""
         return NamedFunction(
             dom=self,
             cod=self.X0,
@@ -1367,8 +1482,12 @@ class Pullback(Construct):
 
     def proj_1(self):
         """Return the second projection
-        p1 : X0 x_{X2} X1 → X1,
-        defined by p1(x, y) = y."""
+
+            p1 : X0 x_{X2} X1 → X1
+
+        defined by 
+
+            p1(x, y) = y."""
         return NamedFunction(
             dom=self,
             cod=self.X1,
@@ -1380,8 +1499,13 @@ class Pullback(Construct):
         """
         For f : C → X0 and g : C → X1 such that f0 ∘ f = f1 ∘ g,
         return the unique function u : C → X0 x_{X2} X1
-        such that p0 ∘ u = f and p1 ∘ u = g
-        defined as u(x) = (f(x), g(x)) for all x in C.
+        such that 
+
+            p0 ∘ u = f and p1 ∘ u = g
+
+        defined as 
+
+            u(x) = (f(x), g(x)) for all x in C.
         """
         if f.cod != self.X0 or g.cod != self.X1:
             raise ValueError(
@@ -1401,8 +1525,12 @@ class Pullback(Construct):
 
     def braiding(self):
         """Return the braiding isomorphism of the pullback
-        X0 x_{X2} X1 ≃ X1 x_{X2} X0,
-        defined by i(x, y) = (y, x)."""
+
+            β : X0 x_{X2} X1 ≃ X1 x_{X2} X0
+
+        defined by 
+            i(x, y) = (y, x)
+        """
         braid = Pullback(self.f1, self.f0)
         regle_braid = lambda pair: (pair[1], pair[0])
         return Bijection(
@@ -1432,7 +1560,10 @@ class Equalizer(Construct):
         self._obj = NamedSet(self.elements, self.name)
 
     def inclusion(self) -> NamedFunction:
-        """Return the inclusion map eq(f0,f1) → X into the domain."""
+        """Return the inclusion map 
+        
+            i : eq(f0,f1) ↣ X 
+        """
         incl_regle = lambda x: x
         incl = NamedFunction(
             dom=self, cod=self.f.dom, table=incl_regle, name=f"incl_{self.name}"
@@ -1466,7 +1597,10 @@ class Initial(Construct):
         self._obj = NamedSet(self.elements, self.name)
 
     def unique_map(self, A: Representable) -> NamedFunction:
-        """Return the unique function !_A : ∅ → A,
+        """Return the unique function
+
+            !_A : ∅ → A
+
         which is the empty function since there are no elements in the domain."""
         regle_unique = lambda x: None  # fonction vide
         return NamedFunction(dom=self, cod=A, table=regle_unique, name=f"!_{A.name}")
@@ -1501,8 +1635,10 @@ class Coproduct(Construct):
     """The coproduct of two named sets X0 and X1
     This is the disjoint union of X0 and X1,
     which can be represented as the set of pairs :
+
     - (0, a) with a in X0
     - (1, b) with b in X1
+
     where the first component indicates the origin of the element."""
 
     def __init__(self, X0: Representable, X1: Representable):
@@ -1526,8 +1662,14 @@ class Coproduct(Construct):
         self._obj = NamedSet(self.elements, self.name)
 
     def inj_0(self) -> Injection:
-        """Return the first injection q0 : X0 → X0 + X1,
-        defined by q0(a) = (0, a)."""
+        """Return the first injection 
+
+            q0 : X0 ↣ X0 + X1,
+
+        defined by 
+
+            q0(a) = (0, a)
+        """
         inj_0_regle = lambda a: (0, a)
         inj_0 = Injection(
             dom=self.X0, cod=self, table=inj_0_regle, name=f"q0_{self.name}"
@@ -1535,8 +1677,14 @@ class Coproduct(Construct):
         return inj_0
 
     def inj_1(self) -> Injection:
-        """Return the second injection q1 : X1 → X0 + X1,
-        defined by q1(b) = (1, b)."""
+        """Return the second injection
+
+            q1 : X1 ↣ X0 + X1
+
+        defined by
+
+            q1(b) = (1, b)
+        """
         inj_1_regle = lambda b: (1, b)
         inj_1 = Injection(
             dom=self.X1, cod=self, table=inj_1_regle, name=f"q1_{self.name}"
@@ -1545,8 +1693,13 @@ class Coproduct(Construct):
 
     def universal_solution(self, f0: NamedFunction, f1: NamedFunction) -> NamedFunction:
         """For f0 : X0 → C and f1 : X1 → C with same codomain C.
-        Returns the unique function u : X0 + X1 → C
-        such that u ∘ q0 = f0 and u ∘ q1 = f1.
+        Returns the unique function 
+        
+            u : X0 + X1 → C
+
+        such that 
+        
+            u ∘ q0 = f0 and u ∘ q1 = f1
         """
         if f0.cod != f1.cod:
             raise ValueError("The codomains must be equal.")
@@ -1559,11 +1712,16 @@ class Coproduct(Construct):
         )
 
     def braiding(self) -> Bijection:
-        """Returns the braiding isomorphism i_(X0, X1) :
-        X0 + X1 ≃ X1 + X0
+        """
+        Returns the braiding isomorphism 
+
+            β : X0 + X1 ≃ X1 + X0
+
         defined by
-        - i(0, a) = (1, a)
-        - i(1, b) = (0, b)."""
+
+            - β(0, a) = (1, a)
+            - β(1, b) = (0, b)
+        """
         braid = Coproduct(self.X1, self.X0)
         regle_braid = lambda pair: (1, pair[1]) if pair[0] == 0 else (0, pair[1])
         return Bijection(
@@ -1575,16 +1733,30 @@ class Coproduct(Construct):
 
 
 def unitor_coproduct_left(X: Representable) -> Bijection:
-    """Return the left unitor isomorphism ∅ + X ≃ X,
-    defined by λ(1, x) = x."""
+    """
+    Return the left unitor isomorphism 
+
+        λ : ∅ + X ≃ X
+
+    defined by 
+
+        λ(1, x) = x
+    """
     unitor = Coproduct(Initial(), X)
     regle_unitor = lambda pair: pair[1]
     return Bijection(dom=unitor, cod=X, table=regle_unitor, name=f"λ_{X.name}")
 
 
 def unitor_coproduct_right(X: Representable) -> Bijection:
-    """Return the right unitor isomorphism X + ∅ ≃ X,
-    defined by ρ(0, x) = x."""
+    """
+    Return the right unitor isomorphism 
+
+        ρ : X + ∅ ≃ X
+
+    defined by 
+
+        ρ(0, x) = x
+    """
     unitor = Coproduct(X, Initial())
     regle_unitor = lambda pair: pair[1]
     return Bijection(dom=unitor, cod=X, table=regle_unitor, name=f"ρ_{X.name}")
@@ -1593,12 +1765,17 @@ def unitor_coproduct_right(X: Representable) -> Bijection:
 def associator_coproduct(
     X: Representable, Y: Representable, Z: Representable
 ) -> Bijection:
-    """Return the associator isomorphism
-    (X + Y) + Z ≃ X + (Y + Z), defined by:
-    - α((0, (0, x))) = (0, x),
-    - α((0, (1, y))) = (1, (0, y)),
-    - α((1, z)) = (1, (1, z)).
-    Create alias with parenthesis in the name."""
+    """
+    Return the associator isomorphism
+
+        α :(X + Y) + Z ≃ X + (Y + Z)
+
+    defined by:
+
+        -α((0, (0, x))) = (0, x),
+        -α((0, (1, y))) = (1, (0, y)),
+        -α((1, z)) = (1, (1, z))
+    """
     left_pair = Coproduct(X, Y)
     coprod_gauche = Coproduct(left_pair, Z)
     right_pair = Coproduct(Y, Z)
@@ -1617,7 +1794,16 @@ def associator_coproduct(
 
 
 def codiagonal(X: Representable) -> NamedFunction:
-    """Return the codiagonal function ∇ : X + X → X, defined by ∇(0, x) = x and ∇(1, x) = x."""
+    """
+    Return the codiagonal function 
+
+        ∇ : X + X → X
+
+    defined by
+        
+        - ∇(0, x) = x
+        - ∇(1, x) = x
+    """
     coprod = Coproduct(X, X)
     regle_codiag = lambda pair: pair[1]
     return Surjection(
@@ -1626,11 +1812,13 @@ def codiagonal(X: Representable) -> NamedFunction:
 
 
 def coproduct_maps(f: NamedFunction, g: NamedFunction):
-    """Return the coproduct of two functions
-    f : A0 → B0 and g : A1 → B1,
+    """
+    Return the coproduct of two functions f : A0 → B0 and g : A1 → B1,
     defined by
-    - (f + g)(0, a) = (0, f(a))
-    - (f + g)(1, b) = (1, g(b))."""
+
+        - (f + g)(0, a) = (0, f(a))
+        - (f + g)(1, b) = (1, g(b))
+    """
     coproduct_dom = Coproduct(f.dom, g.dom)
     coproduct_cod = Coproduct(f.cod, g.cod)
     regle_coprod = lambda pair: ((0, f(pair[1])) if pair[0] == 0 else (1, g(pair[1])))
@@ -1648,10 +1836,16 @@ def coproduct_maps(f: NamedFunction, g: NamedFunction):
 def left_distributivity_isomorphism(
     ext: Representable, paire: tuple[Representable, Representable]
 ) -> Bijection:
-    """Return the distributivity isomorphism
-    X x (Y + Z) ≃ (X x Y) + (X x Z), defined by:
-    - d(x, (0, y)) = (0, (x, y))
-    - d(x, (1, z)) = (1, (x, z))."""
+    """
+    Return the distributivity isomorphism
+
+        d : X x (Y + Z) ≃ (X x Y) + (X x Z)
+    
+    defined by:
+
+        - d(x, (0, y)) = (0, (x, y))
+        - d(x, (1, z)) = (1, (x, z))
+    """
     Y, Z = paire
     X = ext
     coprod = Coproduct(Y, Z)
@@ -1674,10 +1868,16 @@ def left_distributivity_isomorphism(
 def right_distributivity_isomorphism(
     ext: Representable, paire: tuple[Representable, Representable]
 ) -> Bijection:
-    """Return the distributivity isomorphism
-    (X + Y) x Z ≃ (X x Z) + (Y x Z), defined by:
-    - d((0, x), z) = (0, (x, z))
-    - d((1, y), z) = (1, (y, z))."""
+    """
+    Return the distributivity isomorphism
+
+        d : (X + Y) x Z ≃ (X x Z) + (Y x Z)
+
+    defined by:
+
+        - d((0, x), z) = (0, (x, z))
+        - d((1, y), z) = (1, (y, z))
+    """
     X, Y = paire
     Z = ext
     coprod = Coproduct(X, Y)
@@ -1701,10 +1901,9 @@ def right_distributivity_isomorphism(
 
 
 class FiniteCoproduct(Construct):
-    """The finite coproduct of a list of named sets X0, ..., X_{n-1}
-
-    Its elements are pairs (i, x)
-    with i in {0, ..., n-1} and x in X_i."""
+    """
+    Return the finite coproduct of a list of named sets X0, ..., X_{n-1}, 
+    whose elements are pairs (i, x) with i in {0, ..., n-1} and x in X_i."""
 
     def __init__(self, liste: Sequence[Representable]):
         self.arity = len(liste)
@@ -1729,7 +1928,8 @@ class FiniteCoproduct(Construct):
         )
 
     def universal_solution(self, list_f: list[NamedFunction]) -> NamedFunction:
-        """Suppose list_f is a list of functions f_i : X_i -> C
+        """
+        Suppose list_f is a list of functions f_i : X_i -> C
         where X_i are the operands of the coproduct.
         Return the unique function u : X_0 + ... + X_{n-1} -> C
         such that u ∘ q_i = f_i for all i.
@@ -1752,8 +1952,11 @@ class FiniteCoproduct(Construct):
 
 
 def finite_coproduct_maps(list_f: list[NamedFunction]) -> NamedFunction:
-    """Return the coproduct of a list of functions f_i : A_i → B_i,
-    defined by (f_0 + ... + f_{n-1})(i, a) = (i, f_i(a))."""
+    """
+    Return the coproduct of a list of functions f_i : A_i → B_i, defined by 
+
+        (f_0 + ... + f_{n-1})(i, a) = (i, f_i(a))
+    """
     coproduct_dom = FiniteCoproduct([f.dom for f in list_f])
     coproduct_cod = FiniteCoproduct([f.cod for f in list_f])
     regle_coprod = lambda pair: (pair[0], list_f[pair[0]](pair[1]))
@@ -1772,10 +1975,11 @@ def finite_coproduct_maps(list_f: list[NamedFunction]) -> NamedFunction:
 
 
 class Pushout(Construct):
-    """The pushout of f0 : X2 → X0 and f1 : X2 → X1
-    is the quotient of the coproduct X0 + X1
-    by the equivalence relation generated by the gluing conditions
-    (0, f0(x)) ~ (1, f1(x)) for all x in X2.
+    """
+    Return the pushout of f0 : X2 → X0 and f1 : X2 → X1
+    as the quotient of the coproduct X0 + X1
+    by the equivalence relation generated by the gluing conditions    
+     (0, f0(x)) ~ (1, f1(x)) for all x in X2.
     constructed from a setoid on the coproduct,
     where the equivalence relation is generated by the gluing conditions."""
 
@@ -1808,26 +2012,46 @@ class Pushout(Construct):
         return self.pushout_setoid.class_of((1, y))
 
     def inj_0(self) -> NamedFunction:
-        """Return the injection from X0 to the pushout,
-        defined by q_0(a) = [ (0, a) ]."""
+        """
+        Return the injection 
+
+            q_0 : X0 → X0 +_{X2} X1
+
+        defined by 
+
+            q_0(a) = [ (0, a) ]
+        """
         inj_0_regle = lambda x: self._class_of_left(x)
         return NamedFunction(
             dom=self.X0, cod=self, table=inj_0_regle, name=f"q_0_{self.name}"
         )
 
     def inj_1(self) -> NamedFunction:
-        """Return the injection from X1 to the pushout,
-        defined by q_1(b) = [ (1, b) ]."""
+        """
+        Return the injection 
+
+            q_1 : X1 → X0 +_{X2} X1
+
+        defined by 
+
+            q_1(b) = [ (1, b) ]
+        """
         inj_1_regle = lambda y: self._class_of_right(y)
         return NamedFunction(
             dom=self.X1, cod=self, table=inj_1_regle, name=f"q_1_{self.name}"
         )
 
     def universal_solution(self, f: NamedFunction, g: NamedFunction) -> NamedFunction:
-        """For f : X0 → C and g : X1 → C such that f ∘ f0 = g ∘ f1
-        Returns the universal solution u defined by
-        - u(0, a) = f(a)
-        - u(1, b) = g(b)."""
+        """
+        For f : X0 → C and g : X1 → C such that f ∘ f0 = g ∘ f1, returns the universal solution 
+
+            u : X0 +_{X2} X1 → C 
+        
+        defined by
+
+            - u([0, a]) = f(a)
+            - u([1, b]) = g(b)
+        """
         if f.dom != self.X0 or g.dom != self.X1:
             raise ValueError("The domains of the functions must be equal to X0 and X1.")
         if f.cod != g.cod:
@@ -1849,10 +2073,16 @@ class Pushout(Construct):
         )
 
     def braiding(self) -> Bijection:
-        """Return the braiding isomorphism of the pushout,
-        X0 +_{X2} X1 ≃ X1 +_{X2} X0, defined by
-        - i([0, a]) = [1, a]
-        - i([1, b]) = [0, b]."""
+        """
+        Return the braiding isomorphism of the pushout,
+
+            β : X0 +_{X2} X1 ≃ X1 +_{X2} X0
+
+        defined by
+        
+            - β([0, a]) = [1, a]
+            - β([1, b]) = [0, b]
+        """
         braid = Pushout(self.f1, self.f0)
         regle_braid = lambda cls: (
             self._class_of_right(cls[0][1])
@@ -1872,7 +2102,9 @@ class Pushout(Construct):
 
 class Coequalizer(Construct):
     """The coequalizer of f0 : X → Y and f1 : X → Y is the quotient of Y
-    by the gluing conditions f0(x) ~ f1(x) for all x in X."""
+    by the gluing conditions 
+
+        f0(x) ~ f1(x) for all x in X."""
 
     def __init__(self, f0: NamedFunction, f1: NamedFunction):
         if f0.dom != f1.dom or f0.cod != f1.cod:
@@ -1890,8 +2122,14 @@ class Coequalizer(Construct):
         return self.setoid.projection()
 
     def universal_solution(self, f: NamedFunction) -> NamedFunction:
-        """For f : Y → C such that f ∘ f0 = f ∘ f1,
-        return the unique function u : Coeq(f0, f1) → C such that u ∘ proj = f."""
+        """For f : Y → C such that f ∘ f0 = f ∘ f1, return the unique function
+
+            u : Coeq(f0, f1) → C 
+            
+        such that 
+            
+            u ∘ proj = f
+        """
         if not self.test_coequalize(f):
             raise ValueError("The function f does not coequalize f0 and f1.")
         C = f.cod
@@ -1912,8 +2150,7 @@ class Coequalizer(Construct):
 
 
 def Omega_set() -> NamedSet:
-    """Subobject classifier Ω, aka 2
-    Its elements are the booleans"""
+    """Subobject classifier Ω, aka 2. Its elements are the native booleans False and True."""
     return NamedSet({False, True}, "Ω")
 
 
@@ -1966,7 +2203,8 @@ def powerset(A: Representable) -> NamedSet:
 
 def powerset_contravariant(f: NamedFunction) -> NamedFunction:
     """Return the contravariant powerset map induced by f : A → B,
-    defined by f*(S) = {x in A | f(x) in S} for any subset S of B."""
+    defined by 
+     f*(S) = {x in A | f(x) in S} for any subset S of B."""
     PA = powerset(f.dom)
     PB = powerset(f.cod)
     regle_powerset = lambda subset: name_by_content(
@@ -1977,7 +2215,8 @@ def powerset_contravariant(f: NamedFunction) -> NamedFunction:
 
 def powerset_covariant(f: NamedFunction) -> NamedFunction:
     """Return the covariant powerset map induced by f : A → B,
-    defined by Σf(S) = {f(x) | x in S} for any subset S of A."""
+    defined by 
+     Σf(S) = {f(x) | x in S} for any subset S of A."""
     PA = powerset(f.dom)
     PB = powerset(f.cod)
     regle_powerset = lambda subset: name_by_content({f(x) for x in subset})
@@ -2101,7 +2340,8 @@ def singleton(a) -> NamedSet:
 
 
 def pair(a, b) -> NamedSet:
-    """Return the pair {a, b} as a NamedSet."""
+    """
+    Return the pair {a, b} as a NamedSet."""
     if a == b:
         return singleton(a)
     else:
@@ -2109,20 +2349,33 @@ def pair(a, b) -> NamedSet:
 
 
 def ordered_pair(a, b) -> NamedSet:
-    """Return the ordered pair (a, b) as a NamedSet, defined by (a, b) = {{a}, {a, b}}."""
+    """
+    Return the ordered pair (a, b) as a NamedSet, defined by 
+    
+        (a, b) = {{a}, {a, b}}
+        
+    """
     return pair(singleton(a), pair(a, b))
 
 
 def union(X: Representable, Y: Representable) -> NamedSet:
-    """Return the union of two sets X and Y as a NamedSet,
-    defined by X ∪ Y = {x | x ∈ X or x ∈ Y}."""
+    """
+    Return the union of two sets X and Y as a NamedSet,
+    defined by 
+
+        X ∪ Y = {x | x ∈ X or x ∈ Y}
+    """
     union_elements: set = X.obj.set | Y.obj.set
     return NamedSet(union_elements, f"{X.name} ∪ {Y.name}")
 
 
 def union_of_elements(X: Representable) -> NamedSet:
-    """Return the union of the elements of X as a NamedSet,
-    defined by ⋃X = {x | ∃y ∈ X, x ∈ y}."""
+    """
+    Return the union of the elements of X as a NamedSet,
+    defined by 
+
+        ⋃X = {x | ∃y ∈ X, x ∈ y}
+    """
     union_elements: set = set()
     for y in X:
         if isinstance(y, Representable):
@@ -2133,9 +2386,12 @@ def union_of_elements(X: Representable) -> NamedSet:
 
 
 def ordinal(n: int) -> Representable:
-    """Return Von-Neumann ordinal n as a Representable, defined by:
-    - 0 = ∅
-    - n+1 = n ∪ {n}"""
+    """
+    Return Von-Neumann ordinal n as a Representable, defined by:
+
+        - 0 = ∅
+        - n+1 = n ∪ {n}
+    """
     if n == 0:
         return Initial()
     else:
@@ -2188,7 +2444,10 @@ class Relation:
         return Setoid(Coproduct(self.dom, self.cod), pairs_embedded)
 
     def __repr__(self):
-        """Return the string R ↣ A x B"""
+        """Return the string 
+
+            R ↣ A x B
+        """
         return f"{self._name} ↣ {self.dom.name} x {self.cod.name}"
 
     def __str__(self):
@@ -2206,7 +2465,9 @@ class Relation:
 def composition_relations(R: Relation, S: Relation) -> Relation:
     """Given two relations R on A x B and S on B x C,
     return their composition S ∘ R on A x C defined by
-    S ∘ R = { (a, c) | ∃b ∈ B, (a, b) ∈ R and (b, c) ∈ S }."""
+    
+        S ∘ R = { (a, c) | ∃b ∈ B, (a, b) ∈ R and (b, c) ∈ S }
+    """
     if R.cod != S.dom:
         raise ValueError("The codomain of R must match the domain of S.")
     composed_pairs: set = {
@@ -2222,7 +2483,10 @@ def composition_relations(R: Relation, S: Relation) -> Relation:
 
 def join_relations(R: Relation, S: Relation) -> Relation:
     """Given two relations R and S on the same sets A x B,
-    return their join R ∨ S defined by R ∨ S = { (a, b) | (a, b) ∈ R or (a, b) ∈ S }."""
+    return their join R ∨ S defined by 
+
+        R ∨ S = { (a, b) | (a, b) ∈ R or (a, b) ∈ S }
+    """
     if R.dom != S.dom or R.cod != S.cod:
         raise ValueError("The domains and codomains of R and S must be the same.")
     joined_pairs: set = R.pairs | S.pairs
@@ -2236,7 +2500,9 @@ def join_relations(R: Relation, S: Relation) -> Relation:
 
 def meet_relations(R: Relation, S: Relation) -> Relation:
     """Given two relations R and S on the same sets A x B,
-    return their meet R ∧ S defined by R ∧ S = { (a, b) | (a, b) ∈ R and (a, b) ∈ S }.
+    return their meet R ∧ S defined by
+
+        R ∧ S = { (a, b) | (a, b) ∈ R and (a, b) ∈ S }
     """
     if R.dom != S.dom or R.cod != S.cod:
         raise ValueError("The domains and codomains of R and S must be the same.")

@@ -61,6 +61,8 @@ def main():
         name = 'HX'
     )
 
+    
+
     print(HX.display())
     print(HX.sizes())
     print(HX.node_map.display())
@@ -87,6 +89,29 @@ def main():
 
     print(HX.dual.display())
     print(HX.bidual_isomorphism.display())
+
+    SX = seth.NamedSet(elements = {'x0', 'x1'}, name = 'SX')
+    TX = seth.NamedSet(elements = {'t0', 't1'}, name = 'TX')
+    LX = seth.NamedSet(elements = {'lx'}, name = 'LX')
+
+    HX = hyp.Hypergraph(
+    Nodes = SX,
+    Ties = TX,
+    Links = LX,
+    node_map = seth.NamedFunction(
+        dom = TX,
+        cod = SX,
+        table = {'t0': 'x0', 't1': 'x1'},
+        name = 'node_map'),
+    link_map = seth.NamedFunction(
+        dom = TX,
+        cod = LX,
+        table = {'t0': 'lx', 't1': 'lx'},
+        name = 'link_map'),
+    name = 'HX'
+    )
+
+    print(HX.display())
 
 if __name__ == "__main__":
     main()
