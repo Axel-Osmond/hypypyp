@@ -15,6 +15,11 @@ Hypypyp contains two modules:
 * Seth: a module to work in the category of (finite) sets
 * Hyp : a module depending on Seth to work in the category of (finite) hypergraphs
 
+## Documentation
+
+The documentation is available here:
+
+https://axel-osmond.github.io/hypypyp/
 
 
 ## Seth
