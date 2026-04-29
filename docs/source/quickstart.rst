@@ -8,6 +8,6 @@ Import the two main packages:
    import seth
    import hyp
 
-The package ``seth`` contains finite named sets, named functions, and categorical constructions.
+The package ``seth`` contains finite named sets, named functions, and associated categorical constructions.
 
-The package ``hyp`` contains hypergraphs represented as spans of finite named sets.
+The package ``hyp`` contains hypergraphs represented as spans of finite named sets, and associated categorical constructions.
