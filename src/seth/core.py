@@ -374,7 +374,8 @@ class Setoid(Construct):
         return NamedSet(self.classes, f"{self.X.name}/eq")
 
     def projection(self) -> NamedFunction:
-        """Return the projection function from X to the quotient,
+        """
+        Return the projection function from X to the quotient,
         sending each element to its class
 
             q : X -> X/eq
@@ -600,7 +601,8 @@ class NamedFunction:
         return NamedSet(im, name=f"Im({self.name})")
 
     def injective_part(self) -> NamedFunction:
-        """Return the injective part of the function
+        """
+        Return the injective part of the function
 
             Im(f) → Y,
         
@@ -631,8 +633,11 @@ class NamedFunction:
     ## Displays and comparisons
 
     def symbolic_repr(self) -> str:
-        """Return a symbolic representation of the function, e.g., 
-            f : X → Y """
+        """
+        Return a symbolic representation of the function, e.g., 
+
+            f : X → Y 
+            """
         return f"{self.name} : {self.dom.name} → {self.cod.name} "
 
     def graph_repr(self) -> str:
@@ -732,8 +737,10 @@ def chaines(D: set, n: int) -> set[tuple[NamedFunction, ...]]:
     """D: set of named functions
     set of composable chains of length n,
     i.e., tuples (f_0, ..., f_{n-1})
-    such that 
-     cod(f_i) = dom(f_{i+1}) for all i."""
+    such that for all i
+
+        cod(f_i) = dom(f_{i+1}) 
+    """
     chaines_brutes = it.product(D, repeat=n)
     chaines = set()
     for chaine in chaines_brutes:
@@ -758,9 +765,10 @@ def composition(f: NamedFunction, g: NamedFunction) -> NamedFunction:
 
 
 def composition_chaine(chaine: Sequence[NamedFunction]) -> NamedFunction:
-    """Return the composition of a chain of composable functions, defined by 
+    """
+    Return the composition of a chain of composable functions, defined by 
 
-     (f_{n-1} ∘ ... ∘ f_0)(x) = f_{n-1}(...(f_0(x))...)
+        (f_{n-1} ∘ ... ∘ f_0)(x) = f_{n-1}(...(f_0(x))...)
     
     """
     chaine_tuple: tuple[NamedFunction, ...] = tuple(chaine)
@@ -879,7 +887,8 @@ class Surjection(NamedFunction):
         return cls(f.dom, f.cod, f.values, name=f.name)
 
     def sections(self) -> NamedSet:
-        """Return the set of sections of the surjection,
+        """
+        Return the set of sections of the surjection,
         i.e., the functions  
 
             s : cod -> dom 
@@ -1011,11 +1020,11 @@ def currying(A: Representable, B: Representable, C: Representable) -> Bijection:
         """Given f : A x B → C, 
         return the curried function 
 
-         g : A → Hom(B, C)
+            g : A → Hom(B, C)
          
         defined by 
 
-         g(a)(b) = f(a, b)."""
+            g(a)(b) = f(a, b)."""
 
         def curr(a):
             table = {b: f((a, b)) for b in B}
@@ -1772,9 +1781,9 @@ def associator_coproduct(
 
     defined by:
 
-        -α((0, (0, x))) = (0, x),
-        -α((0, (1, y))) = (1, (0, y)),
-        -α((1, z)) = (1, (1, z))
+        - α((0, (0, x))) = (0, x)
+        - α((0, (1, y))) = (1, (0, y))
+        - α((1, z)) = (1, (1, z))
     """
     left_pair = Coproduct(X, Y)
     coprod_gauche = Coproduct(left_pair, Z)
@@ -2080,8 +2089,8 @@ class Pushout(Construct):
 
         defined by
         
-            - β([0, a]) = [1, a]
-            - β([1, b]) = [0, b]
+            - β([(0, a)]) = [(1, a)]
+            - β([(1, b)]) = [(0, b)]
         """
         braid = Pushout(self.f1, self.f0)
         regle_braid = lambda cls: (
@@ -2202,9 +2211,13 @@ def powerset(A: Representable) -> NamedSet:
 
 
 def powerset_contravariant(f: NamedFunction) -> NamedFunction:
-    """Return the contravariant powerset map induced by f : A → B,
+    """
+    Return the contravariant powerset map induced by f : A → B,
     defined by 
-     f*(S) = {x in A | f(x) in S} for any subset S of B."""
+
+        f*(S) = {x in A | f(x) in S} 
+
+    for any subset S of B."""
     PA = powerset(f.dom)
     PB = powerset(f.cod)
     regle_powerset = lambda subset: name_by_content(
@@ -2214,9 +2227,13 @@ def powerset_contravariant(f: NamedFunction) -> NamedFunction:
 
 
 def powerset_covariant(f: NamedFunction) -> NamedFunction:
-    """Return the covariant powerset map induced by f : A → B,
+    """
+    Return the covariant powerset map induced by f : A → B,
     defined by 
-     Σf(S) = {f(x) | x in S} for any subset S of A."""
+
+        Σf(S) = {f(x) | x in S} 
+    
+    for any subset S of A."""
     PA = powerset(f.dom)
     PB = powerset(f.cod)
     regle_powerset = lambda subset: name_by_content({f(x) for x in subset})
