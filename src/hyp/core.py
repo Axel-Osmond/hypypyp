@@ -421,9 +421,13 @@ class Hypergraph(Representable):
         """Display the name"""
         return self.name
 
-    def rename_global(self, new_name: str) -> Hypergraph:
+    def rename(self, new_name: str) -> Hypergraph:
         """Return a new hypergraph with the same underlying sets and maps,
-        but a new name."""
+        but a new name.
+
+        This overrides Representable.rename to avoid the recursion
+        ``self.obj.rename(...)`` because, for a Hypergraph, ``self.obj is self``.
+        """
         return Hypergraph(
             Nodes=self.Nodes,
             Ties=self.Ties,
@@ -432,6 +436,11 @@ class Hypergraph(Representable):
             link_map=self.link_map,
             name=new_name,
         )
+
+    def rename_global(self, new_name: str) -> Hypergraph:
+        """Return a new hypergraph with the same underlying sets and maps,
+        but a new name."""
+        return self.rename(new_name)
 
     # les fonctions suivantes requièrent que S, L, T soient des ensembles nommés
 
