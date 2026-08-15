@@ -13,6 +13,9 @@ build/
 dist/
 *.egg-info/
 .eggs/
+rust/target/
+*.pdb
+*.prof
 
 docs/build/
 
@@ -28,6 +31,8 @@ htmlcov/
 
 # Jupyter
 .ipynb_checkpoints/
+Chantier.ipynb
+Fast homsets.ipynb
 
 # Sphinx documentation build
 docs/_build/

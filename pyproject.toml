@@ -1,6 +1,13 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+manifest-path = "rust/Cargo.toml"
+python-source = "src"
+python-packages = ["hyp", "seth"]
+module-name = "seth._native"
+bindings = "pyo3"
 
 [project]
 name = "hypypyp"

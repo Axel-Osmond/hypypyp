@@ -4,6 +4,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Callable, Sequence
 import itertools as it
+from types import MappingProxyType
+from . import _native as rustic
 
 #########################################################################################
 
@@ -79,6 +81,26 @@ class Representable(ABC):
         return len(self.obj)
 
 
+    ### Enumerative methods
+    def __contains__(self, x) -> bool:
+        """Check if an element is in the underlying set."""
+        return x in self.obj
+
+    @property
+    def enumeration(self) -> tuple:
+        """Return the enumeration of the underlying set."""
+        return self.obj.enumeration
+
+    def rank(self, x) -> int:
+        """Return the rank of an element in the underlying set."""
+        return self.obj.rank(x)
+
+    def unrank(self, n: int):
+        """Return the element of rank n in the underlying set."""
+        return self.obj.unrank(n)
+    
+
+
 ## -- Constructs --
 
 
@@ -104,6 +126,26 @@ class Construct(Representable):
 
     def __iter__(self):
         return iter(self.obj)
+
+    #########
+    # Enumerative methods
+
+    def __contains__(self, x) -> bool:
+        """Check if an element is in the underlying set."""
+        return x in self.obj
+
+    @property
+    def enumeration(self) -> tuple:
+        """Return the enumeration of the underlying set."""
+        return self.obj.enumeration
+
+    def rank(self, x) -> int:
+        """Return the rank of an element in the underlying set."""
+        return self.obj.rank(x)
+
+    def unrank(self, n: int):
+        """Return the element of rank n in the underlying set."""
+        return self.obj.unrank(n)
 
 
 # TODO : enumerate will have to be removed when implementing infinite sets
@@ -151,7 +193,7 @@ class NamedSet(Representable):
     Named sets are immutable, hence hashable; they have an extensional equality
     and can be themselves elements of other sets, or be keys in dictionnaries."""
 
-    def __init__(self, elements: set | frozenset | FrozenSetAffiche, name: str):
+    def __init__(self, elements: set | frozenset | FrozenSetAffiche, name: str, enum: tuple | None = None):
         """Initialize a NamedSet with a given set and name:
 
         Args:
@@ -166,6 +208,42 @@ class NamedSet(Representable):
         else:
             self.set = FrozenSetAffiche(elements)
         self._name = name
+
+
+    ################################################################
+        # New code added to support enumeration of the elements of the set
+
+        if enum is not None:
+            self._enum = tuple(enum)
+        elif all(hasattr(x, "name") for x in self.set):
+            self._enum = tuple(
+                sorted(self.set, key=lambda x: (x.name, type(x).__name__, repr(x)))
+            )
+        else:
+            self._enum = tuple(
+                sorted(self.set, key=lambda x: (type(x).__name__, repr(x)))
+            )
+
+        if len(self._enum) != len(self.set) or frozenset(self._enum) != self.set:
+            raise ValueError("The enumeration must contain all elements of the set exactly once.")
+        
+        self._enum_dict = {x: i for i, x in enumerate(self._enum)}
+
+    @property
+    def enumeration(self):
+        return self._enum
+
+    def rank(self, x):
+        return self._enum_dict[x]
+
+    def unrank(self, i):
+        return self._enum[i]
+
+    def restrict_enum(self, subset: set | frozenset | FrozenSetAffiche) -> tuple:
+        """Return the enumeration of the subset, preserving the order of the original enumeration."""
+        return tuple(x for x in self._enum if x in subset)
+
+    ############################################################
 
     @property
     def obj(self) -> NamedSet:
@@ -185,11 +263,16 @@ class NamedSet(Representable):
         """Hash based on the frozen underlying set."""
         return hash(self.set)
 
+##############################################################
+
     def __iter__(self):
         """Iterate over the elements of the underlying set.
         Hence one can write "for x in A" where A is a NamedSet"
         and it will iterate over the elements of A.set."""
-        return iter(self.set)
+        return iter(self._enum)
+
+
+##############################################################
 
     def __len__(self) -> int:
         """Return the cardinality of the underlying set."""
@@ -201,15 +284,31 @@ class NamedSet(Representable):
 
     def __repr__(self) -> str:
         """Display the name and the elements of the set in a sorted order."""
-        return FrozenSetAffiche(self.set).__repr__()
+        """Example: {a, b, c} instead of {c, a, b} or {b, c, a}."""
+        parts = [
+            repr(x) for x in self._enum
+        ]
+        if any("\n" in part for part in parts):
+            indented_parts = [part.replace("\n", "\n\t") for part in parts]
+            return "{\n\t" + ",\n\t".join(indented_parts) + "\n}"
+        return "{" + ", ".join(parts) + "}"
     
     def content(self) -> str:
         """Display the name and the elements of the set in a sorted order."""
         return f"{self.name} = {FrozenSetAffiche(self.set).__repr__()}"
 
-    def display(self) -> str:
-        """Display the name and the elements of the set in a sorted order with indentation."""
-        return f"{self.name} = {{\n {FrozenSetAffiche(self.set).display()}}}"
+    def display(self):
+        """Display the elements of the frozenset in a sorted order with indentation.
+        Example:
+            {a, b, c} will be displayed as:
+                a
+                b
+                c
+        """
+        disp = str()
+        for x in self._enum:
+            disp = disp + f" \t {repr(x)} \n"
+        return disp
 
     def __str__(self) -> str:
         """Display only the name of the set."""
@@ -225,34 +324,54 @@ class NamedSet(Representable):
         """Return the underlying set as a regular set (not frozenset)."""
         return set(self.set)
 
+##########################################################
+    # with enumeration process
+
     def add(self, x) -> "NamedSet":
-        """Return a new NamedSet with x added to the underlying set,
-        keeping the same name."""
-        new_set = set(self.set)
-        new_set.add(x)
-        return NamedSet(new_set, self.name)
+        if x in self.set:
+            return self
+
+        return NamedSet(self.set | {x}, self.name, enum=(*self._enum, x))
+
 
     def remove(self, x) -> "NamedSet":
-        """Return a new NamedSet with x removed from the underlying set,
-        keeping the same name."""
-        new_set = set(self.set)
-        new_set.remove(x)
-        return NamedSet(new_set, self.name)
+        if x not in self.set:
+            raise KeyError(x)  # ou conserver le ValueError actuel de set.remove
+
+        return NamedSet( self.set - {x}, self.name, enum=tuple(y for y in self._enum if y != x))
+
 
     def rename(self, new_name: str) -> "NamedSet":
         """Return a new NamedSet with the same underlying set
         but a new name."""
-        return NamedSet(self.set, new_name)
+        return NamedSet(self.set, new_name, enum = self._enum)
+
+   
 
     def rename_elements(self, rename_func: Callable | dict) -> "NamedSet":
         """Return a new NamedSet with the same name
         but with the elements renamed according to rename_func."""
-        if isinstance(rename_func, dict):
-            new_set = {rename_func.get(x, x) for x in self.set}
+        if isinstance(rename_func, Mapping):
+            transform = lambda x: rename_func.get(x, x)
         else:
-            new_set = {rename_func(x) for x in self.set}
-        return NamedSet(new_set, self.name)
+            transform = rename_func
+        new_enum = tuple(transform(x) for x in self._enum)
+        new_set = frozenset(new_enum)
+        if len(new_set) != len(self.set):
+            raise ValueError("The renaming function must be injective (one-to-one).")
+        return NamedSet(new_set, self.name, enum=new_enum)
 
+    
+    @classmethod
+    def from_list(cls, elements: list, name: str) -> NamedSet:
+        """Create a NamedSet from a list of elements, preserving the order of the list."""
+        unique_elements = []
+        seen = set()
+        for x in elements:
+            if x not in seen:
+                unique_elements.append(x)
+                seen.add(x)
+        return cls(set(unique_elements), name, enum=tuple(unique_elements))
 
 def name_by_content(elements: set | frozenset | FrozenSetAffiche) -> NamedSet:
     """Generate a name for a set based on its content.
@@ -363,6 +482,9 @@ class Setoid(Construct):
             raise KeyError(f"{x} n'appartient pas à {self.X.name}")
         return self._class_of[x]
 
+    def sorted_class(self, x) -> tuple:
+        return self.X.restrict_enum(self.class_of(x))
+
     def created_equality(self, x, y) -> bool:
         """Return True if x and y are in the same equivalence class,
         i.e., if they are created equalities."""
@@ -371,7 +493,8 @@ class Setoid(Construct):
     def quotient(self) -> NamedSet:
         """Return the quotient set as a NamedSet,
         where the elements are the equivalence classes."""
-        return NamedSet(self.classes, f"{self.X.name}/eq")
+        quotient_enum = tuple(sorted(self.classes, key=lambda c: self.X.rank(self.X.restrict_enum(c)[0])))
+        return NamedSet(set(quotient_enum), f"{self.X.name}/eq", enum=quotient_enum)
 
     def projection(self) -> NamedFunction:
         """
@@ -511,13 +634,26 @@ class NamedFunction:
         self.name = name if name else "f"
         if isinstance(table, Mapping):
             self.entry_mode = "mapping"
-            self.values = dict(table)
+            values = dict(table)
         elif callable(table):
             self.entry_mode = "callable"
-            self.values = {x: table(x) for x in self.dom}
+            values = {x: table(x) for x in self.dom}
         else:
             raise TypeError("Table must be a mapping or a callable.")
+        self.values = MappingProxyType(values)
         self._verify_values()
+
+        self._dom_enum = self.dom.enumeration
+        self._cod_enum = self.cod.enumeration
+        self._raw = tuple(self.cod.rank(self.values[x]) for x in self._dom_enum)
+        try:
+            self.rustic_code = rustic.encode_function(len(self.cod), self._raw)
+        except OverflowError:
+            self.rustic_code = sum(
+                image * len(self.cod) ** position
+                for position, image in enumerate(self._raw)
+            )
+
 
     def _verify_values(self) -> None:
         """Verify that the values are well-defined, i.e.:
@@ -549,6 +685,8 @@ class NamedFunction:
         if not isinstance(other, NamedFunction):
             return NotImplemented
         # Based on rule/value equality independently of the name
+        if self.dom is other.dom and self.cod is other.cod:
+            return self._raw == other._raw
         return (
             self.dom == other.dom
             and self.cod == other.cod
@@ -598,7 +736,11 @@ class NamedFunction:
     def image(self) -> NamedSet:
         """Return the image as a named set."""
         im = {self.values[x] for x in self.dom}
-        return NamedSet(im, name=f"Im({self.name})")
+        indices = set(self._raw)
+        image_enum = tuple(
+            y for j, y in enumerate(self.cod.obj._enum)
+            if j in indices)
+        return NamedSet(im, name=f"Im({self.name})", enum=image_enum)
 
     def injective_part(self) -> NamedFunction:
         """
@@ -643,7 +785,7 @@ class NamedFunction:
     def graph_repr(self) -> str:
         """Return a representation of the graph of the function
         where each line is of the form "x ↦ f(x)"."""
-        return "\n".join(f"\t\t{x} ↦ {y}" for x, y in self.values.items())
+        return "\n".join(f"\t\t{self.dom.enumeration[i]} ↦ {self.cod.enumeration[y]}" for i, y in enumerate(self._raw))
 
     def __repr__(self) -> str:
         """Return a representation of the function
@@ -684,12 +826,8 @@ class NamedFunction:
 
     def injectivity_test_fast(self) -> bool:
         """Fast test for injectivity
-        based on the sizes of the domain and codomain."""
-        if len(self.dom) > len(self.cod):
-            return False
-        if len(set(self.values.values())) < len(self.dom):
-            return False
-        return True
+        trim redundancy in the raw list and compare."""
+        return len(set(self._raw)) == len(self._raw)
 
     def surjectivity_test(self) -> bool:
         """Test surjectivity
@@ -700,11 +838,7 @@ class NamedFunction:
     def surjectivity_test_fast(self) -> bool:
         """Fast test for surjectivity
         based on the sizes of the domain and codomain."""
-        if len(self.dom) < len(self.cod):
-            return False
-        if len(set(self.values.values())) < len(self.cod):
-            return False
-        return True
+        return len(set(self._raw)) == len(self.cod)
 
     def bijectivity_test(self) -> bool:
         """Test bijectivity by checking
@@ -715,6 +849,29 @@ class NamedFunction:
         """Fast test for bijectivity
         based on the sizes of the domain and codomain."""
         return self.injectivity_test_fast() and self.surjectivity_test_fast()
+
+    @classmethod
+    def from_raw(cls, dom : Representable, cod : Representable, raw_liste : Sequence[int], name : str) -> NamedFunction:
+        """Factory method to create a NamedFunction from a raw list of indices
+        corresponding to the images of the elements of the domain in the codomain.
+        The raw list must have the same length as the domain and contain indices
+        that are valid for the codomain."""
+        if len(raw_liste) != len(dom):
+            raise ValueError("The raw list must have the same length as the domain.")
+        if any(type(j) is not int or not 0 <= j < len(cod) for j in raw_liste):
+            raise ValueError("Invalid codomain index")
+        values = {x: cod.unrank(i) for x, i in zip(dom.enumeration, raw_liste)}
+        return cls(dom=dom, cod=cod, table=values, name=name)
+
+    @classmethod
+    def from_index(cls, dom : Representable, cod : Representable, index : int, name : str) -> NamedFunction:
+        """Factory method to create a NamedFunction from an index
+        corresponding to the images of the elements of the domain in the codomain.
+        The index must be valid for the number of functions from dom to cod."""
+        return cls.from_raw(dom=dom, 
+                            cod=cod, 
+                            raw_liste=rustic.decode_function(len(dom), len(cod), index), 
+                            name=name or f"f_{{{index}}}")
 
 
 def name_by_rule(
@@ -756,6 +913,9 @@ def composition(f: NamedFunction, g: NamedFunction) -> NamedFunction:
     """
     if f.cod != g.dom:
         raise ValueError("Not composable functions.")
+    if f.cod is g.dom or f.cod.enumeration == g.dom.enumeration:
+        composite = tuple(g._raw[j] for j in f._raw)
+        return NamedFunction.from_raw(dom=f.dom, cod=g.cod, raw_liste=composite, name=f"{g.name} ∘ {f.name}")
     return NamedFunction(
         dom=f.dom,
         cod=g.cod,
@@ -834,6 +994,10 @@ class Injection(NamedFunction):
             raise ValueError(
                 f"{self.name} is not injective: the elements {paires} have the same image."
             )
+        try:
+            self.rustic_code_injection = rustic.encode_injection(len(self.cod), self._raw)
+        except OverflowError:
+            self.rustic_code_injection = None
 
     def symbolic_repr(self) -> str:
         """
@@ -848,6 +1012,18 @@ class Injection(NamedFunction):
     def from_function(cls, f: NamedFunction) -> "Injection":
         """Factory method to create an injection from a function that has tested injective"""
         return cls(f.dom, f.cod, f.values, name=f"m_{f.name}")
+
+    @classmethod
+    def from_raw(cls, dom: Representable, cod: Representable, raw_liste: Sequence[int], name: str) -> "Injection":
+        f = NamedFunction.from_raw(dom, cod, raw_liste, name)
+        return cls(f.dom, f.cod, f.values, name=name)
+
+    @classmethod
+    def from_injection_index(cls, dom: Representable, cod: Representable, index: int, name: str = None) -> "Injection":
+        return cls.from_raw(dom=dom, 
+                            cod=cod, 
+                            raw_liste=rustic.decode_injection(len(dom), len(cod), index), 
+                            name=name or f"m_{{{index}}}")
 
 
 ## -- Surjections --
@@ -871,6 +1047,10 @@ class Surjection(NamedFunction):
             raise ValueError(
                 f"{self.name} is not surjective: the image does not cover {Complement_image}"
             )
+        try:
+            self.rustic_code_surjection = rustic.encode_surjection(len(self.cod), self._raw)
+        except OverflowError:
+            self.rustic_code_surjection = None
 
     def symbolic_repr(self) -> str:
         """
@@ -885,6 +1065,22 @@ class Surjection(NamedFunction):
     def from_function(cls, f: NamedFunction) -> "Surjection":
         """Factory method to create a surjection from a function that has tested surjective"""
         return cls(f.dom, f.cod, f.values, name=f.name)
+
+
+    @classmethod
+    def from_raw(cls, dom: Representable, cod: Representable, raw_liste: Sequence[int], name: str) -> "Surjection":
+        f = NamedFunction.from_raw(dom, cod, raw_liste, name)
+        return cls(f.dom, f.cod, f.values, name=name)
+
+    @classmethod
+    def from_surjection_index(cls, dom: Representable, cod: Representable, index: int, name: str = None) -> "Surjection":
+        return cls.from_raw(dom=dom, 
+                            cod=cod, 
+                            raw_liste=rustic.decode_surjection(len(dom), len(cod), index), 
+                            name=name or f"m_{{{index}}}")
+
+
+    
 
     def sections(self) -> NamedSet:
         """
@@ -934,6 +1130,12 @@ class Bijection(NamedFunction):
         self.inverse = NamedFunction(
             dom=self.cod, cod=self.dom, table=self.backward, name=f"{self.name}⁻¹"
         )
+        try:
+            self.rustic_code_bijection = rustic.encode_bijection(
+                len(self.dom), len(self.cod), self._raw
+            )
+        except OverflowError:
+            self.rustic_code_bijection = None
 
     def symbolic_repr(self) -> str:
         """
@@ -948,6 +1150,19 @@ class Bijection(NamedFunction):
     def from_function(cls, f: NamedFunction) -> "Bijection":
         """Factory method to create a bijection from a function that has tested bijective"""
         return cls(f.dom, f.cod, f.values, name=f.name)
+
+    @classmethod
+    def from_raw(cls, dom: Representable, cod: Representable, raw_liste: Sequence[int], name: str) -> "Bijection":
+        f = NamedFunction.from_raw(dom, cod, raw_liste, name)
+        return cls(f.dom, f.cod, f.values, name=name)
+
+    @classmethod
+    def from_bijection_index(cls, dom: Representable, cod: Representable, index: int, name: str = None) -> "Bijection":
+        return cls.from_raw(dom=dom, 
+                            cod=cod, 
+                            raw_liste=rustic.decode_bijection(len(dom), len(cod), index), 
+                            name=name or f"m_{{{index}}}")
+
 
     def inverse_test(self) -> bool:
         """Test that the backward function is indeed the inverse of the forward function."""
@@ -972,32 +1187,50 @@ class HomSet(Construct):
         self.A = A
         self.B = B
         self._name = f"Hom({A.name},{B.name})"
+        self._obj = None
+
+    def generate_list_tables(self) -> list[dict]:
+        return [rustic.decode_function(len(self.A), len(self.B), i) for i in range(self.card())]
+
+    def generate(self):
+        return NamedSet.from_list(
+            [NamedFunction.from_index(self.A, self.B, i, name=f"f_{i}") for i in range(self.card())],
+            name=self.name,
+        )
+
+    def access(self, i: int) -> NamedFunction:
+        """Access the i-th function in the homset, based on the rustic encoding."""
+        if not (0 <= i < self.card()):
+            raise IndexError(f"Index {i} out of range for HomSet of size {self.card()}.")
+        return NamedFunction.from_index(self.A, self.B, i, name=f"f_{i}")
 
     def card(self) -> int:
         return len(self.B) ** len(self.A)
 
-    def generate(self) -> set[NamedFunction]:
-        """Generate all functions from A to B,
-        sorts A and B to ensure a consistent order,
-        then builds the table of values for each function;
-        Returns a native set of named functions.
-        and creates a NamedFunction for each possible combination of images.
-        This is a brute-force generation,
-        feasible for small sets, costly for larger sets.
-        """
-        A_list = tuple(sorted(self.A, key=str))
-        B_list = tuple(sorted(self.B, key=str))
-        Homset = set()
-        for images in it.product(B_list, repeat=len(A_list)):
-            table = {A_list[i]: images[i] for i in range(len(A_list))}
-            f = NamedFunction(self.A, self.B, table=table, name=f"f_{images}")
-            Homset.add(f)
-        return Homset
+    # def generate(self) -> set[NamedFunction]:
+    #     """Generate all functions from A to B,
+    #     sorts A and B to ensure a consistent order,
+    #     then builds the table of values for each function;
+    #     Returns a native set of named functions.
+    #     and creates a NamedFunction for each possible combination of images.
+    #     This is a brute-force generation,
+    #     feasible for small sets, costly for larger sets.
+    #     """
+    #     A_list = tuple(sorted(self.A, key=str))
+    #     B_list = tuple(sorted(self.B, key=str))
+    #     Homset = set()
+    #     for images in it.product(B_list, repeat=len(A_list)):
+    #         table = {A_list[i]: images[i] for i in range(len(A_list))}
+    #         f = NamedFunction(self.A, self.B, table=table, name=f"f_{images}")
+    #         Homset.add(f)
+    #     return Homset
 
     @property
     def obj(self) -> NamedSet:
         """Realizes Hom[A,B] as a NamedSet."""
-        return NamedSet(set(self.generate()), self.name)
+        if self._obj is None:
+            self._obj = self.generate()
+        return self._obj
 
     @property
     def name(self) -> str:
@@ -1041,17 +1274,86 @@ def currying(A: Representable, B: Representable, C: Representable) -> Bijection:
     )
 
 
-## -- Bijections set --
+## -- Functoriality of homsets --
 
+def Hom_left(f: NamedFunction, B: Representable) -> NamedFunction:
+    """Given f : A → A' and B, return the function
+
+        Hom(f, B) : Hom(A', B) → Hom(A, B)
+
+    defined by 
+
+        Hom(f, B)(g) = g ∘ f
+    """
+    A = f.dom
+    A_prime = f.cod
+    Hom_Ap_B = HomSet(A_prime, B)
+    Hom_A_B = HomSet(A, B)
+    table = {g: composition(f, g) for g in Hom_Ap_B}
+    return NamedFunction(dom=Hom_Ap_B, cod=Hom_A_B, table=table, name=f"Hom({f.name}, {B.name})")
+
+def Hom_right(A: Representable, g: NamedFunction) -> NamedFunction:
+    """Given A and g : B → B', return the function
+
+        Hom(A, g) : Hom(A, B) → Hom(A, B')
+
+    defined by 
+
+        Hom(A, g)(f) = g ∘ f
+    """
+    B = g.dom
+    B_prime = g.cod
+    Hom_A_B = HomSet(A, B)
+    Hom_A_Bp = HomSet(A, B_prime)
+    table = {f: composition(f, g) for f in Hom_A_B}
+    return NamedFunction(dom=Hom_A_B, cod=Hom_A_Bp, table=table, name=f"Hom({A.name}, {g.name})")
+
+## -- Subset of the homset set --
+
+def Inj(A: Representable, B: Representable) -> NamedSet:
+    """Return the set of injections from A to B as a NamedSet."""
+    number = rustic.count_injections(len(A), len(B))
+    inj = [Injection.from_injection_index(A, B, i, name=f"inj_{i}") for i in range(number)]
+    return NamedSet.from_list(inj, f"Inj({A.name}, {B.name})")
+
+def Inj_inclusion(A: Representable, B: Representable) -> Injection:
+    Hom = HomSet(A, B)
+    Inj_set = Inj(A, B)
+    inclusion_table = {f: Hom.access(f.rustic_code) for f in Inj_set}
+    return Injection(dom=Inj_set, 
+                     cod=Hom, 
+                     table=inclusion_table, 
+                     name=f"Inj_inclusion({A.name}, {B.name})")
+
+def Surj(A: Representable, B: Representable) -> NamedSet:
+    """Return the set of surjections from A to B as a NamedSet."""
+    number = rustic.count_surjections(len(A), len(B))
+    surj = [Surjection.from_surjection_index(A, B, i, name=f"surj_{i}") for i in range(number)]
+    return NamedSet.from_list(surj, f"Surj({A.name}, {B.name})")
+
+def Surj_inclusion(A: Representable, B: Representable) -> Injection:
+    Hom = HomSet(A, B)
+    Surj_set = Surj(A, B)
+    inclusion_table = {f: Hom.access(f.rustic_code) for f in Surj_set}
+    return Injection(dom=Surj_set, 
+                     cod=Hom, 
+                     table=inclusion_table, 
+                     name=f"Surj_inclusion({A.name}, {B.name})")
 
 def Bij(A: Representable, B: Representable) -> NamedSet:
     """Return the set of bijections from A to B as a NamedSet."""
-    hom = HomSet(A, B)
-    bij = set()
-    for f in hom:
-        if f.bijectivity_test_fast():  # f est bijective
-            bij.add(f)
-    return NamedSet(bij, f"Bij({A.name}, {B.name})")
+    number = rustic.bijection_number(len(A), len(B))
+    bij = [Bijection.from_bijection_index(A, B, i, name=f"bij_{i}") for i in range(number)]
+    return NamedSet.from_list(bij, f"Bij({A.name}, {B.name})")
+
+def Bij_inclusion(A: Representable, B: Representable) -> Injection:
+    Hom = HomSet(A, B)
+    Bij_set = Bij(A, B)
+    inclusion_table = {f: Hom.access(f.rustic_code) for f in Bij_set}
+    return Injection(dom=Bij_set, 
+                     cod=Hom,   
+                     table=inclusion_table,
+                     name=f"Bij_inclusion({A.name}, {B.name})")
 
 
 ##########################################################################################
@@ -1118,7 +1420,14 @@ class Product(Construct):
     def __init__(self, X0: Representable, X1: Representable):
         self.X0 = X0
         self.X1 = X1
-        self.elements = {(a, b) for a in X0 for b in X1}
+        product_enum = tuple(
+            (a, b)
+            for a in X0.enumeration
+            for b in X1.enumeration
+        )
+
+        self.elements = set(product_enum)
+
         if isinstance(self.X0, Product | Coproduct) and not isinstance(
             self.X1, Product | Coproduct
         ):
@@ -1133,7 +1442,12 @@ class Product(Construct):
             self._name = f"({X0.name}) x ({X1.name})"
         else:
             self._name = f"{X0.name} x {X1.name}"
-        self._obj = NamedSet(self.elements, self.name)
+
+        self._obj = NamedSet(
+            self.elements,
+            self.name,
+            enum=product_enum,
+        )    
 
     def proj_0(self) -> Surjection:
         """
@@ -1330,11 +1644,15 @@ class FiniteProduct(Construct):
         """For a list of NamedSet (X0,..., X_{n-1}),
         Compute the finite product X0 x ... x X_{n-1}
         which is the set of n-tuples (a0,..., a_{n-1}) with ai in Xi."""
-        self.arity = len(liste)
-        self.operands = liste
-        self.elements = set(it.product(*(operand.obj.set for operand in liste)))
-        self._name = " x ".join(operand.name for operand in liste)
-        self._obj = NamedSet(self.elements, self.name)
+        self.operands = tuple(liste)
+        self.arity = len(self.operands)
+        product_enum = tuple(
+            it.product(*(operand.enumeration for operand in self.operands))
+        )
+        self.elements = set(product_enum)
+
+        self._name = " x ".join(operand.name for operand in self.operands)
+        self._obj = NamedSet(self.elements, self.name, enum=product_enum)
 
     def proj(self, i: int) -> Surjection:
         """Return the i-th projection from the product to the i-th operand,
@@ -1459,9 +1777,10 @@ class Pullback(Construct):
         self.X0 = f0.dom
         self.X1 = f1.dom
         self.X2 = f0.cod
-        self.elements = {(x, y) for x in self.X0 for y in self.X1 if f0(x) == f1(y)}
+        pullback_enum = tuple((x, y) for x in self.X0 for y in self.X1 if f0(x) == f1(y))
+        self.elements = set(pullback_enum)
         self._name = f"Pullback of ({f0.name}, {f1.name})"
-        self._obj = NamedSet(self.elements, self.name)
+        self._obj = NamedSet(self.elements, self.name, enum=pullback_enum)
         self.fibers = {((x, y), f0(x)) for (x, y) in self.elements}
 
     def test_codomain(self):
@@ -1564,9 +1883,10 @@ class Equalizer(Construct):
             raise ValueError("The functions must have the same domain and codomain.")
         self.f = f0
         self.g = g0
-        self.elements = {x for x in f0.dom if f0(x) == g0(x)}
+        equalizer_enum = tuple(x for x in f0.dom if f0(x) == g0(x))
+        self.elements = set(equalizer_enum)
         self._name = f"Eq({f0.name}, {g0.name})"
-        self._obj = NamedSet(self.elements, self.name)
+        self._obj = NamedSet(self.elements, self.name, enum=equalizer_enum)
 
     def inclusion(self) -> NamedFunction:
         """Return the inclusion map 
@@ -1603,7 +1923,8 @@ class Initial(Construct):
     def __init__(self):
         self.elements = set()
         self._name = "∅"
-        self._obj = NamedSet(self.elements, self.name)
+        empty_enum = tuple()
+        self._obj = NamedSet(self.elements, self.name, enum=empty_enum)
 
     def unique_map(self, A: Representable) -> NamedFunction:
         """Return the unique function
@@ -1653,7 +1974,10 @@ class Coproduct(Construct):
     def __init__(self, X0: Representable, X1: Representable):
         self.X0 = X0
         self.X1 = X1
-        self.elements = {(0, a) for a in X0} | {(1, b) for b in X1}
+        coproduct_enum = tuple((0, a) for a in X0.enumeration) + tuple(
+            (1, b) for b in X1.enumeration
+        )
+        self.elements = set(coproduct_enum)
         if isinstance(self.X0, Product | Coproduct) and not isinstance(
             self.X1, Product | Coproduct
         ):
@@ -1668,7 +1992,7 @@ class Coproduct(Construct):
             self._name = f"({X0.name}) + ({X1.name})"
         else:
             self._name = f"{X0.name} + {X1.name}"
-        self._obj = NamedSet(self.elements, self.name)
+        self._obj = NamedSet(self.elements, self.name, enum=coproduct_enum)
 
     def inj_0(self) -> Injection:
         """Return the first injection 
@@ -1917,11 +2241,10 @@ class FiniteCoproduct(Construct):
     def __init__(self, liste: Sequence[Representable]):
         self.arity = len(liste)
         self.operands = liste
-        self.elements = set()
-        for i, operand in enumerate(liste):
-            self.elements |= {(i, x) for x in operand}
+        coproduct_enum = tuple((i, x) for i, operand in enumerate(liste) for x in operand)
+        self.elements = set(coproduct_enum)
         self._name = " + ".join(operand.name for operand in liste)
-        self._obj = NamedSet(self.elements, self.name)
+        self._obj = NamedSet(self.elements, self.name, enum=coproduct_enum)
 
     def inj(self, i: int) -> Injection:
         """Return the i-th injection from X_i to the coproduct,
@@ -2006,7 +2329,7 @@ class Pushout(Construct):
             self.gluing_conditions,
         )
         self._name = f"Pushout of ({f0.name}, {f1.name})"
-        self._obj = self.pushout_setoid.quotient()
+        self._obj = self.pushout_setoid.obj
 
     def test_domain(self) -> None:
         """Ensure that the domains of f0 and f1 are the same,
@@ -2124,7 +2447,7 @@ class Coequalizer(Construct):
         self.gluing_conditions = {(f0(x), f1(x)) for x in f0.dom}
         self.setoid = Setoid(self.prequotient, self.gluing_conditions)
         self._name = f"Coeq({f0.name}, {f1.name})"
-        self._obj = self.setoid.quotient()
+        self._obj = self.setoid.obj
 
     def projection(self) -> NamedFunction:
         """Return the projection from Y to the coequalizer, defined by proj(y) = [y]."""
@@ -2246,7 +2569,7 @@ def inclusion_subset(subset_brut: set, A: Representable):
     if not subset_brut.issubset(A.obj.set):
         raise ValueError("The subset must be included in A.")
     regle_incl = lambda x: x
-    Subs = NamedSet(subset_brut, f"Sub_{A.name}")
+    Subs = NamedSet(subset_brut, f"Sub_{A.name}", enum=A.obj.restrict_enum(subset_brut))
     return NamedFunction(dom=Subs, cod=A, table=regle_incl, name=f"incl_Sub_{A.name}")
 
 
