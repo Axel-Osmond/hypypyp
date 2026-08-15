@@ -1,6 +1,6 @@
 # Hypypyp
 
-A small python library to work in the categories of (finite) sets and (finite) hypergraphs.
+A little python library to work in the categories of (finite) sets and (finite) hypergraphs.
 
 ## Overview
 
@@ -8,6 +8,8 @@ Hypypyp contains two modules:
 
 * Seth: a module to work in the category of (finite) sets
 * Hyp : a module depending on Seth to work in the category of (finite) hypergraphs
+
+It also contains a small auxiliary module in rust to accelerate homset manipulations.
 
 More documentation available at <https://axel-osmond.github.io/hypypyp/>
 
@@ -18,6 +20,8 @@ Seth allows to represent (finite) sets and maps between them.
 Sets are represented by the class NamedSet, whose instances consist of a frozenset and a name.
 
 As frozenset are immutable, so are NamedSet, which can hence be elements of other NamedSets.
+
+Sets can be provided also an explicit enumeration (used to quick manipulation of functions). Constructions inherit such enumeration.
 
 Maps between sets are represented by the class NamedFunction, which take as parameters a domain, a codomain, a table, and a name. The table can be either a dictionnary for extensive definition, or a callable for generic description.
 
