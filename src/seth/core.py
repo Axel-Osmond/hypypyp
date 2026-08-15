@@ -191,7 +191,9 @@ class FrozenSetAffiche(frozenset):
 class NamedSet(Representable):
     """A named set is a FrozensetAffiche equipped with a name.
     Named sets are immutable, hence hashable; they have an extensional equality
-    and can be themselves elements of other sets, or be keys in dictionnaries."""
+    and can be themselves elements of other sets, or be keys in dictionnaries.
+    Named sets will also be provided with enumeration of their elements, 
+    which will be used to allow for light representations of functions and other constructions."""
 
     def __init__(self, elements: set | frozenset | FrozenSetAffiche, name: str, enum: tuple | None = None):
         """Initialize a NamedSet with a given set and name:
@@ -231,12 +233,15 @@ class NamedSet(Representable):
 
     @property
     def enumeration(self):
+        """Return the enumeration of the underlying set."""
         return self._enum
 
     def rank(self, x):
+        """Return the rank of an element in the underlying set."""
         return self._enum_dict[x]
 
     def unrank(self, i):
+        """Return the element of the underlying set with the given rank."""
         return self._enum[i]
 
     def restrict_enum(self, subset: set | frozenset | FrozenSetAffiche) -> tuple:
@@ -268,7 +273,8 @@ class NamedSet(Representable):
     def __iter__(self):
         """Iterate over the elements of the underlying set.
         Hence one can write "for x in A" where A is a NamedSet"
-        and it will iterate over the elements of A.set."""
+        and it will iterate over the elements of A.set.
+        Iter is based on the enumeration."""
         return iter(self._enum)
 
 
@@ -328,6 +334,7 @@ class NamedSet(Representable):
     # with enumeration process
 
     def add(self, x) -> "NamedSet":
+        """Return a new NamedSet with the same name and the element x added to the underlying set."""
         if x in self.set:
             return self
 
@@ -335,6 +342,7 @@ class NamedSet(Representable):
 
 
     def remove(self, x) -> "NamedSet":
+        """Return a new NamedSet with the same name and the element x removed from the underlying set."""
         if x not in self.set:
             raise KeyError(x)  # ou conserver le ValueError actuel de set.remove
 
@@ -408,6 +416,8 @@ class Setoid(Construct):
         name: an optional name for the setoid.
 
         The underlying object is the quotient set.
+        The enumeration of the quotient is computed by sorting the equivalence classes 
+        by the rank of their minimal element in the enumeration of X.
     """
 
     def __init__(self, X: Representable, eq: set[tuple]):
@@ -483,6 +493,7 @@ class Setoid(Construct):
         return self._class_of[x]
 
     def sorted_class(self, x) -> tuple:
+        """Return the equivalence class of x as a sorted tuple by restricting the enumeration of X to the class of x."""
         return self.X.restrict_enum(self.class_of(x))
 
     def created_equality(self, x, y) -> bool:
@@ -604,6 +615,9 @@ class NamedFunction:
 
     V1 : all sets are finite,
     so we can always define the function by enumerating the domain and codomain.
+
+    _raw is the tuple of ranks of the images of the elements of the domain,
+    and rustic_code is the integer encoding of the function as a base-|Y| number.
     """
 
     def __init__(
@@ -1152,12 +1166,21 @@ class Bijection(NamedFunction):
         return cls(f.dom, f.cod, f.values, name=f.name)
 
     @classmethod
-    def from_raw(cls, dom: Representable, cod: Representable, raw_liste: Sequence[int], name: str) -> "Bijection":
+    def from_raw(cls, dom: Representable, 
+                 cod: Representable, 
+                 raw_liste: Sequence[int], 
+                 name: str) -> "Bijection":
+        """Factory method to create a bijection from a raw list of image ranks."""
         f = NamedFunction.from_raw(dom, cod, raw_liste, name)
         return cls(f.dom, f.cod, f.values, name=name)
 
     @classmethod
-    def from_bijection_index(cls, dom: Representable, cod: Representable, index: int, name: str = None) -> "Bijection":
+    def from_bijection_index(cls, 
+                             dom: Representable, 
+                             cod: Representable, 
+                             index: int, 
+                             name: str = None) -> "Bijection":
+        """Factory method to create a bijection from an index with the rustic encoding."""
         return cls.from_raw(dom=dom, 
                             cod=cod, 
                             raw_liste=rustic.decode_bijection(len(dom), len(cod), index), 
@@ -1190,9 +1213,12 @@ class HomSet(Construct):
         self._obj = None
 
     def generate_list_tables(self) -> list[dict]:
+        """Generate the table from indexes by rustic decoding"""
         return [rustic.decode_function(len(self.A), len(self.B), i) for i in range(self.card())]
 
     def generate(self):
+        """Generate all functions from A to B as a NamedSet of NamedFunctions.
+        use the rustic decoding for a quick enumeration."""
         return NamedSet.from_list(
             [NamedFunction.from_index(self.A, self.B, i, name=f"f_{i}") for i in range(self.card())],
             name=self.name,
@@ -1207,23 +1233,6 @@ class HomSet(Construct):
     def card(self) -> int:
         return len(self.B) ** len(self.A)
 
-    # def generate(self) -> set[NamedFunction]:
-    #     """Generate all functions from A to B,
-    #     sorts A and B to ensure a consistent order,
-    #     then builds the table of values for each function;
-    #     Returns a native set of named functions.
-    #     and creates a NamedFunction for each possible combination of images.
-    #     This is a brute-force generation,
-    #     feasible for small sets, costly for larger sets.
-    #     """
-    #     A_list = tuple(sorted(self.A, key=str))
-    #     B_list = tuple(sorted(self.B, key=str))
-    #     Homset = set()
-    #     for images in it.product(B_list, repeat=len(A_list)):
-    #         table = {A_list[i]: images[i] for i in range(len(A_list))}
-    #         f = NamedFunction(self.A, self.B, table=table, name=f"f_{images}")
-    #         Homset.add(f)
-    #     return Homset
 
     @property
     def obj(self) -> NamedSet:
@@ -1317,6 +1326,7 @@ def Inj(A: Representable, B: Representable) -> NamedSet:
     return NamedSet.from_list(inj, f"Inj({A.name}, {B.name})")
 
 def Inj_inclusion(A: Representable, B: Representable) -> Injection:
+    """Return the inclusion of injections into the homset as an Injection."""
     Hom = HomSet(A, B)
     Inj_set = Inj(A, B)
     inclusion_table = {f: Hom.access(f.rustic_code) for f in Inj_set}
@@ -1332,6 +1342,7 @@ def Surj(A: Representable, B: Representable) -> NamedSet:
     return NamedSet.from_list(surj, f"Surj({A.name}, {B.name})")
 
 def Surj_inclusion(A: Representable, B: Representable) -> Injection:
+    """Return the inclusion of surjections into the homset as an Injection."""
     Hom = HomSet(A, B)
     Surj_set = Surj(A, B)
     inclusion_table = {f: Hom.access(f.rustic_code) for f in Surj_set}
@@ -1347,6 +1358,7 @@ def Bij(A: Representable, B: Representable) -> NamedSet:
     return NamedSet.from_list(bij, f"Bij({A.name}, {B.name})")
 
 def Bij_inclusion(A: Representable, B: Representable) -> Injection:
+    """Return the inclusion of bijections into the homset as an Injection."""
     Hom = HomSet(A, B)
     Bij_set = Bij(A, B)
     inclusion_table = {f: Hom.access(f.rustic_code) for f in Bij_set}
@@ -1374,9 +1386,10 @@ class Terminal(Construct):
     """The terminal object in the category of sets is the singleton set, which we denote by 1."""
 
     def __init__(self):
-        self.elements = {"*"}
+        terminal_enum = ("*",)
+        self.elements = set(terminal_enum)
         self._name = "1"
-        self._obj = NamedSet(self.elements, self.name)
+        self._obj = NamedSet(self.elements, self.name, enum=terminal_enum)
 
     def unique_map(self, A: Representable) -> NamedFunction:
         """
@@ -1415,7 +1428,9 @@ def terminal_isomorphism(X: Representable) -> Bijection:
 
 class Product(Construct):
     """Return the binary product X0 x X1 of two named sets X0 and X1, that is the set of pairs
-    (a, b) with a in X0 and b in X1"""
+    (a, b) with a in X0 and b in X1, 
+    endowed with the two projections p0 and p1 and the universal solution property.
+    The enumeration of the product is the lexicographic order of the enumerations of X0 and X1."""
 
     def __init__(self, X0: Representable, X1: Representable):
         self.X0 = X0
@@ -1638,7 +1653,8 @@ def decomposition_binary_product(candidate: Representable) -> Product:
 
 class FiniteProduct(Construct):
     """Take a list of NamedSet and build their finite product, '
-    with projections and universal solution."""
+    with projections and universal solution.
+    Enumeration of the product is the lexicographic order of the enumerations of the operands."""
 
     def __init__(self, liste: Sequence[Representable]):
         """For a list of NamedSet (X0,..., X_{n-1}),
@@ -1770,7 +1786,8 @@ class Pullback(Construct):
     def __init__(self, f0: NamedFunction, f1: NamedFunction):
         """The pullback of f0 : X0 → X2 and f1 : X1 → X2
         This is the set of pairs (x, y) in X0 x X1
-        such that f0(x) = f1(y)."""
+        such that f0(x) = f1(y).
+        Enumeration is the restriction of the lexicographic order of X0 x X1 to the pullback."""
         self.f0 = f0
         self.f1 = f1
         self.test_codomain()
@@ -1878,7 +1895,8 @@ class Equalizer(Construct):
 
     def __init__(self, f0: NamedFunction, g0: NamedFunction):
         """The equalizer of f0 : X → Y and g0 : X → Y is the set of elements
-        x in X such that f0(x) = g0(x)."""
+        x in X such that f0(x) = g0(x).
+        Order is restricted from the order of X."""
         if f0.dom != g0.dom or f0.cod != g0.cod:
             raise ValueError("The functions must have the same domain and codomain.")
         self.f = f0
@@ -1969,7 +1987,8 @@ class Coproduct(Construct):
     - (0, a) with a in X0
     - (1, b) with b in X1
 
-    where the first component indicates the origin of the element."""
+    where the first component indicates the origin of the element.
+    Obvious enumeration."""
 
     def __init__(self, X0: Representable, X1: Representable):
         self.X0 = X0
@@ -2313,7 +2332,8 @@ class Pushout(Construct):
     by the equivalence relation generated by the gluing conditions    
      (0, f0(x)) ~ (1, f1(x)) for all x in X2.
     constructed from a setoid on the coproduct,
-    where the equivalence relation is generated by the gluing conditions."""
+    where the equivalence relation is generated by the gluing conditions.
+    Enumeration induced from the enumeration of the coproduct and setoid."""
 
     def __init__(self, f0: NamedFunction, f1: NamedFunction):
         self.f0 = f0
@@ -2436,7 +2456,9 @@ class Coequalizer(Construct):
     """The coequalizer of f0 : X → Y and f1 : X → Y is the quotient of Y
     by the gluing conditions 
 
-        f0(x) ~ f1(x) for all x in X."""
+        f0(x) ~ f1(x) for all x in X.
+        
+    Enumeration is induced from the enumeration method of setoids."""
 
     def __init__(self, f0: NamedFunction, f1: NamedFunction):
         if f0.dom != f1.dom or f0.cod != f1.cod:
