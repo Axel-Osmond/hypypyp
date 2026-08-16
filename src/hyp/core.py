@@ -3711,6 +3711,22 @@ Binary_Type: TypeAlias = (
 that are useful for testing and examples
 and generating finite hypergraphs."""
 
+def number_hyp(size_S : int, size_L : int, size_T : int):
+    """Return the number of hypergraphs with size_S nodes, size_L links, and size_T ties."""
+    return (size_S*size_L)**size_T
+
+def hypset(S : seth.NamedSet, L : seth.NamedSet, T : seth.NamedSet):
+    """Return the set of all hypergraphs with nodes S, links L, and ties T."""
+    size_S = len(S)
+    size_L = len(L)
+    size_T = len(T)
+    prod = seth.Product(S,L)
+    L = seth.finset(size_L)
+    T = seth.finset(size_T)
+    hyplist = []
+    for i in range(number_hyp(size_S, size_L, size_T)):
+        hyplist.append(hypergraph_from_dict(seth.decode_function_to_dict(T, prod, i), S, L))
+    return hyplist
 
 def finset(n: int) -> NamedSet:
     """Return the finite set {0, 1, ..., n-1} with name [n]."""

@@ -981,6 +981,16 @@ def equalities(D: set, n: int) -> set[str]:
             equalities.add(f"{f0.symbolic_repr()} = {f1.symbolic_repr()}")
     return equalities
 
+## -- Auxiliary use of rustic decoding --
+
+def decode_function_raw(dom: Representable, cod: Representable, index: int) -> tuple[int]:
+    """Decode a function from its rustic index to a raw list of codomain indices."""
+    return tuple(rustic.decode_function(len(dom), len(cod), index))
+
+def decode_function_to_dict(dom: Representable, cod: Representable, index: int) -> dict:
+    """Decode a function from its rustic index to a dictionary representation."""
+    raw_liste = rustic.decode_function(len(dom), len(cod), index)
+    return {x: cod.unrank(i) for x, i in zip(dom.enumeration, raw_liste)}
 
 ## -- Injections --
 
@@ -1039,6 +1049,15 @@ class Injection(NamedFunction):
                             raw_liste=rustic.decode_injection(len(dom), len(cod), index), 
                             name=name or f"m_{{{index}}}")
 
+def decode_injection_raw(dom: Representable, cod: Representable, index: int) -> tuple[int]:
+    """Decode an injection from its rustic index to a raw list of codomain indices."""
+    return tuple(rustic.decode_injection(len(dom), len(cod), index))
+
+def decode_injection_to_dict(dom: Representable, cod: Representable, index: int) -> dict:
+    """Decode an injection from its rustic index to a dictionary representation."""
+    raw_liste = rustic.decode_injection(len(dom), len(cod), index)
+    return {x: cod.unrank(i) for x, i in zip(dom.enumeration, raw_liste)}
+
 
 ## -- Surjections --
 
@@ -1062,9 +1081,18 @@ class Surjection(NamedFunction):
                 f"{self.name} is not surjective: the image does not cover {Complement_image}"
             )
         try:
-            self.rustic_code_surjection = rustic.encode_surjection(len(self.cod), self._raw)
+            self.rustic_code_surjection = rustic.encode_surjection(
+                len(self.dom), len(self.cod), self._raw
+            )
         except OverflowError:
             self.rustic_code_surjection = None
+
+    def fibers_raw(self) -> list[list[int]]:
+        """Return the fibers as domain ranks, ordered by codomain rank."""
+        fibers = [[] for _ in self.cod.enumeration]
+        for domain_rank, codomain_rank in enumerate(self._raw):
+            fibers[codomain_rank].append(domain_rank)
+        return fibers
 
     def symbolic_repr(self) -> str:
         """
@@ -1092,8 +1120,6 @@ class Surjection(NamedFunction):
                             cod=cod, 
                             raw_liste=rustic.decode_surjection(len(dom), len(cod), index), 
                             name=name or f"m_{{{index}}}")
-
-
     
 
     def sections(self) -> NamedSet:
@@ -1108,16 +1134,46 @@ class Surjection(NamedFunction):
             f ∘ s = id_cod
             
         """
-        sections = set()
-        index = sorted(self.cod, key=str)
-        fibers = [sorted(self.fiber(y), key=str) for y in index]
-        for i, choix in enumerate(it.product(*fibers)):
-            values_section = {y: choix[i] for i, y in enumerate(index)}
-            section = NamedFunction(
-                self.cod, self.dom, table=values_section, name=f"s_{i}"
-            )
-            sections.add(section)
+        sections = {
+            self.section_from_index(index)
+            for index in range(self.number_of_sections())
+        }
         return NamedSet(sections, f"Γ({self.name})")
+
+    def number_of_sections(self) -> int:
+        """Return the cardinality of the set of sections of this surjection."""
+        return rustic.number_of_sections(self.fibers_raw())
+
+    def section_from_index(self, index: int) -> NamedFunction:
+        """Decode the locally indexed section with code ``index``."""
+        raw_section = rustic.decode_section(self.fibers_raw(), index)
+        return NamedFunction.from_raw(
+            dom=self.cod,
+            cod=self.dom,
+            raw_liste=raw_section,
+            name=f"s_{index}",
+        )
+
+    def section_index(self, section: NamedFunction) -> int:
+        """Encode one of this surjection's sections by its local index."""
+        if section.dom != self.cod or section.cod != self.dom:
+            raise ValueError("The function has incompatible domain or codomain.")
+        return rustic.encode_section(self.fibers_raw(), section._raw)
+
+    def section_code_to_injection_code(self, section_code: int) -> int:
+        """Convert a local section code to its global injection code."""
+        return rustic.section_code_to_injection_code(
+            self.fibers_raw(), section_code
+        )
+
+def decode_surjection_raw(dom: Representable, cod: Representable, index: int) -> tuple[int]:
+    """Decode a surjection from its rustic index to a raw list of codomain indices."""
+    return tuple(rustic.decode_surjection(len(dom), len(cod), index))
+
+def decode_surjection_to_dict(dom: Representable, cod: Representable, index: int) -> dict:
+    """Decode a surjection from its rustic index to a dictionary representation."""
+    raw_liste = rustic.decode_surjection(len(dom), len(cod), index)
+    return {x: cod.unrank(i) for x, i in zip(dom.enumeration, raw_liste)}
 
 
 ## -- Bijections --
@@ -2517,13 +2573,134 @@ def Top() -> Injection:
 def charmap(inclusion: Injection) -> NamedFunction:
     """Given a subobject (inclusion) S → A,
     returns the characteristic function χ_S : A → Ω."""
-    A = inclusion.dom
-    B = inclusion.cod
-    im = {inclusion(x) for x in A}
-    regle_chi = lambda x: True if x in im else False
-    return NamedFunction(
-        dom=B, cod=Omega_set(), table=regle_chi, name=f"χ_{inclusion.name}"
+    return list_to_charmap(
+        inclusion.cod,
+        subobject_to_subset_charmap(inclusion),
+        name=f"χ_{inclusion.name}",
     )
+
+
+def _validate_subset_charmap(
+    A: Representable, bits: Sequence[int | bool]
+) -> tuple[int, ...]:
+    """Validate the rank-ordered binary representation of a subset of ``A``."""
+    normalized = tuple(bits)
+    if len(normalized) != len(A):
+        raise ValueError("A subset charmap must have exactly |A| entries.")
+    if any(type(bit) not in (int, bool) or bit not in (0, 1) for bit in normalized):
+        raise ValueError("A subset charmap may contain only 0 and 1.")
+    return tuple(int(bit) for bit in normalized)
+
+
+def index_to_subset_charmap(A: Representable, index: int) -> list[int]:
+    """Decode ``index`` into bits, with bit ``i`` attached to ``A.unrank(i)``."""
+    if not isinstance(index, int) or index < 0 or index >= 2 ** len(A):
+        raise ValueError("A subset index must belong to range(2^|A|).")
+    return [(index >> i) & 1 for i in range(len(A))]
+
+
+def subset_charmap_to_index(A: Representable, bits: Sequence[int | bool]) -> int:
+    """Encode rank-ordered subset bits as ``sum(bits[i] * 2**i)``."""
+    normalized = _validate_subset_charmap(A, bits)
+    return sum(bit << i for i, bit in enumerate(normalized))
+
+
+def subset_charmap_to_subset(
+    A: Representable, bits: Sequence[int | bool]
+) -> FrozenSetAffiche:
+    """Decode rank-ordered subset bits into a ``NamedSet``."""
+    normalized = _validate_subset_charmap(A, bits)
+    elements = {
+        element
+        for element, bit in zip(A.enumeration, normalized)
+        if bit
+    }
+    return FrozenSetAffiche(elements)
+
+
+def subset_to_subset_charmap(A: Representable, subset: Representable) -> list[int]:
+    """Encode a represented subset of ``A`` as rank-ordered bits."""
+    elements = set(subset)
+    if not elements.issubset(A.obj.set):
+        raise ValueError("The subset must be included in A.")
+    return [int(element in elements) for element in A.enumeration]
+
+
+def subset_to_index(A: Representable, subset: Representable) -> int:
+    """Encode a represented subset of ``A`` by its integer subset code."""
+    return subset_charmap_to_index(A, subset_to_subset_charmap(A, subset))
+
+
+def subobject_to_subset_charmap(inclusion: Injection) -> list[int]:
+    """Encode the image of a subobject ``S ↪ A`` as rank-ordered bits."""
+    image = set(inclusion.values.values())
+    return [int(element in image) for element in inclusion.cod.enumeration]
+
+
+def subobject_to_index(inclusion: Injection) -> int:
+    """Encode the image of a subobject ``S ↪ A`` in ``range(2^|A|)``."""
+    return subset_charmap_to_index(
+        inclusion.cod, subobject_to_subset_charmap(inclusion)
+    )
+
+def charmap_int(inclusion: Injection) -> int:
+    """Compatibility alias for :func:`subobject_to_index`."""
+    return subobject_to_index(inclusion)
+
+def charmap_list(inclusion: Injection) -> list[int]:
+    """Compatibility alias for :func:`subobject_to_subset_charmap`."""
+    return subobject_to_subset_charmap(inclusion)
+
+def list_to_charmap(
+    A: Representable,
+    bits: Sequence[int | bool],
+    name: str | None = None,
+) -> NamedFunction:
+    """Build the characteristic function represented by rank-ordered bits."""
+    normalized = _validate_subset_charmap(A, bits)
+    values = {
+        element: bool(bit)
+        for element, bit in zip(A.enumeration, normalized)
+    }
+    return NamedFunction(
+        dom=A,
+        cod=Omega_set(),
+        table=values,
+        name=name or f"χ_{list(normalized)}",
+    )
+
+def list_to_subset(A: Representable, bits: Sequence[int | bool]) -> NamedSet:
+    """Compatibility alias for :func:`subset_charmap_to_subset`."""
+    return subset_charmap_to_subset(A, bits)
+
+def binary_to_charmap(A: Representable, index: int) -> NamedFunction:
+    """Build the characteristic function represented by a subset index."""
+    return list_to_charmap(A, index_to_subset_charmap(A, index), name=f"χ_{index}")
+
+def index_to_subset(A: Representable, index: int) -> NamedSet:
+    """Decode a subset index into a ``NamedSet``."""
+    return subset_charmap_to_subset(A, index_to_subset_charmap(A, index))
+
+def index_to_list(A: Representable, index: int) -> list[int]:
+    """Compatibility alias for :func:`index_to_subset_charmap`."""
+    return index_to_subset_charmap(A, index)
+
+
+def index_to_binary(A: Representable, index: int) -> list[int]:
+    """Compatibility alias for the historical name used in examples."""
+    return index_to_subset_charmap(A, index)
+
+
+def subset_charmap_to_subobject(
+    A: Representable, bits: Sequence[int | bool]
+) -> Injection:
+    """Decode subset bits into the canonical inclusion ``S ↪ A``."""
+    return inclusion_subset(set(subset_charmap_to_subset(A, bits)), A)
+
+
+def index_to_subobject(A: Representable, index: int) -> Injection:
+    """Decode a subset index into the canonical inclusion ``S ↪ A``."""
+    return subset_charmap_to_subobject(A, index_to_subset_charmap(A, index))
 
 
 def pullback_charmap(chi: NamedFunction) -> Injection:
@@ -2534,7 +2711,7 @@ def pullback_charmap(chi: NamedFunction) -> Injection:
     return Injection.from_function(Pullback(chi, Top()).proj_0())
 
 
-def subset_charmap(chi: NamedFunction) -> NamedSet:
+def charmap_to_subset(chi: NamedFunction) -> NamedSet:
     """Given a characteristic function χ : A → Ω,
     return the corresponding subset of A as a NamedSet."""
     if chi.cod != Omega_set():
@@ -2542,17 +2719,39 @@ def subset_charmap(chi: NamedFunction) -> NamedSet:
     return chi.fiber(True)
 
 
-def powerset(A: Representable) -> NamedSet:
+def subset_charmap(chi: NamedFunction) -> NamedSet:
+    """Compatibility alias for :func:`charmap_to_subset`."""
+    return charmap_to_subset(chi)
+
+
+def powerset_formel(A: Representable) -> NamedSet:
     """Powerset of a set A as a named set.
     Its elements are the subsets of A, represented as NamedSet objects.
     Constructs all the χ : A → Ω and take their fibers"""
     sub = set()
     for chi in HomSet(A, Omega_set()):
         subset_set = NamedSet(
-            subset_charmap(chi).obj.set, f"{subset_charmap(chi).__repr__()}"
+            charmap_to_subset(chi).obj.set, f"{charmap_to_subset(chi).__repr__()}"
         )
         sub.add(subset_set)
     return NamedSet(sub, f"P({A.name})")
+
+def powerset(A: Representable) -> NamedSet:
+    """Return ``P(A)`` enumerated by subset codes ``0, ..., 2^|A| - 1``."""
+    enum = tuple(index_to_subset(A, n) for n in range(2 ** len(A)))
+    return NamedSet(set(enum), f"P({A.name})", enum=enum)
+
+
+def preim(f: NamedFunction, subset_index: int) -> list[int]:
+    """Return the charmap of ``f⁻¹(S)`` from the subset code of ``S ⊆ cod(f)``.
+
+    If ``S_B`` is the rank-ordered charmap of ``S``, the returned list is
+    exactly ``[S_B[f._raw[i]] for i in range(len(f.dom))]``.
+    """
+    if subset_index < 0 or subset_index >= 2 ** len(f.cod):
+        raise ValueError("A subset index must belong to range(2^|cod(f)|).")
+    codomain_charmap = index_to_subset_charmap(f.cod, subset_index)
+    return [codomain_charmap[codomain_rank] for codomain_rank in f._raw]
 
 
 def powerset_contravariant(f: NamedFunction) -> NamedFunction:
@@ -2565,10 +2764,18 @@ def powerset_contravariant(f: NamedFunction) -> NamedFunction:
     for any subset S of B."""
     PA = powerset(f.dom)
     PB = powerset(f.cod)
-    regle_powerset = lambda subset: name_by_content(
-        {x for x in f.dom if f(x) in subset}
-    )
+
+    def regle_powerset(subset: Representable) -> NamedSet:
+        subset_index = subset_to_index(f.cod, subset)
+        preimage_charmap = preim(f, subset_index)
+        return subset_charmap_to_subset(f.dom, preimage_charmap)
+
     return NamedFunction(dom=PB, cod=PA, table=regle_powerset, name=f"{f.name}*")
+
+
+def powerset_contravariant_formel(f: NamedFunction) -> NamedFunction:
+    """Compatibility alias for :func:`powerset_contravariant`."""
+    return powerset_contravariant(f)
 
 
 def powerset_covariant(f: NamedFunction) -> NamedFunction:
@@ -2581,19 +2788,77 @@ def powerset_covariant(f: NamedFunction) -> NamedFunction:
     for any subset S of A."""
     PA = powerset(f.dom)
     PB = powerset(f.cod)
-    regle_powerset = lambda subset: name_by_content({f(x) for x in subset})
+
+    def regle_powerset(subset: Representable) -> NamedSet:
+        image = {f(x) for x in subset}
+        return subset_charmap_to_subset(
+            f.cod,
+            [int(y in image) for y in f.cod.enumeration],
+        )
+
     return NamedFunction(dom=PA, cod=PB, table=regle_powerset, name=f"Σ{f.name}")
 
 
-def inclusion_subset(subset_brut: set, A: Representable):
+def inclusion_subset(subset_brut: set, A: Representable) -> Injection:
     """Given a subset of A as a set,
     return the corresponding inclusion as an Injection."""
     if not subset_brut.issubset(A.obj.set):
         raise ValueError("The subset must be included in A.")
     regle_incl = lambda x: x
     Subs = NamedSet(subset_brut, f"Sub_{A.name}", enum=A.obj.restrict_enum(subset_brut))
-    return NamedFunction(dom=Subs, cod=A, table=regle_incl, name=f"incl_Sub_{A.name}")
+    return Injection(dom=Subs, cod=A, table=regle_incl, name=f"incl_Sub_{A.name}")
 
+
+def injections_factorization(A: Representable, inj0 : Injection, inj1: Injection) -> bool:
+    """Test whether the subobject represented by ``inj0`` factors through ``inj1``."""
+    if inj0.cod != A or inj1.cod != A:
+        raise ValueError("Both injections must have A as codomain.")
+    code0 = subobject_to_index(inj0)
+    code1 = subobject_to_index(inj1)
+    return (code0 & code1) == code0
+
+def union_subobjects(A: Representable, inj0: Injection, inj1: Injection) -> Injection:
+    """Return the union of two subobjects of A as an Injection."""
+    if inj0.cod != A or inj1.cod != A:
+        raise ValueError("Both injections must have A as codomain.")
+    code0 = subobject_to_index(inj0)
+    code1 = subobject_to_index(inj1)
+    union_code = code0 | code1
+    return index_to_subobject(A, union_code)
+
+def intersection_subobjects(A: Representable, inj0: Injection, inj1: Injection) -> Injection:
+    """Return the intersection of two subobjects of A as an Injection."""
+    if inj0.cod != A or inj1.cod != A:
+        raise ValueError("Both injections must have A as codomain.")
+    code0 = subobject_to_index(inj0)
+    code1 = subobject_to_index(inj1)
+    intersection_code = code0 & code1
+    return index_to_subobject(A, intersection_code)
+
+def complement_subobject(A: Representable, inj: Injection) -> Injection:
+    """Return the complement of a subobject of A as an Injection."""
+    if inj.cod != A:
+        raise ValueError("The injection must have A as codomain.")
+    code = subobject_to_index(inj)
+    complement_code = (~code) & ((1 << len(A)) - 1)
+    return index_to_subobject(A, complement_code)
+
+def difference_subobjects(A: Representable, inj0: Injection, inj1: Injection) -> Injection:
+    """Return the difference of two subobjects of A as an Injection."""
+    if inj0.cod != A or inj1.cod != A:
+        raise ValueError("Both injections must have A as codomain.")
+    code0 = subobject_to_index(inj0)
+    code1 = subobject_to_index(inj1)
+    difference_code = code0 & (~code1)
+    return index_to_subobject(A, difference_code)
+
+def test_disjunction(A: Representable, inj0: Injection, inj1: Injection) -> bool:
+    """Test whether the subobjects represented by ``inj0`` and ``inj1`` are disjoint."""
+    if inj0.cod != A or inj1.cod != A:
+        raise ValueError("Both injections must have A as codomain.")
+    code0 = subobject_to_index(inj0)
+    code1 = subobject_to_index(inj1)
+    return (code0 & code1) == 0
 
 def inclusion_test(subset0: set, subset1: set) -> bool:
     """Test if subset0 is included in subset1."""
@@ -2799,6 +3064,11 @@ class Relation:
         pairs = {(a, f(a)) for a in f.dom}
         return cls(dom=f.dom, cod=f.cod, table=pairs, name=f"Graph({f.name})")
 
+    @classmethod
+    def from_subobject(cls, A: Representable, B: Representable, subobject: FrozenSetAffiche, name: str | None = None):
+        """Given a subobject of A x B, return the corresponding relation."""
+        return cls(dom=A, cod=B, table=set(subobject), name=f"{name}" if name else "R")
+
     def gluing(self):
         """Return the setoid on A x B generated by the pairs of the relation,
         i.e., the smallest equivalence relation on A x B that contains the pairs of R"""
@@ -2810,11 +3080,31 @@ class Relation:
 
             R ↣ A x B
         """
-        return f"{self._name} ↣ {self.dom.name} x {self.cod.name}"
+        graph_str = f"{self._name} ↣ {self.dom.name} x {self.cod.name}"
+        for pair in self.pairs:
+            graph_str += f"\n \t \t  {pair[0]} ~ {pair[1]}"
+        return graph_str
 
     def __str__(self):
         """Return the name of the relation."""
         return self._name
+
+    def __len__(self):
+        """Return the number of pairs in the relation."""
+        return len(self.pairs)
+
+    def __eq__(self, other):
+        """Return True if the relations are equal, i.e., have the same pairs."""
+        return (
+            isinstance(other, Relation)
+            and self.dom == other.dom
+            and self.cod == other.cod
+            and self.pairs == other.pairs
+        )
+
+    def __hash__(self):
+        """Return a hash of the relation based on its pairs."""
+        return hash((self.dom, self.cod, frozenset(self.pairs)))
 
     def display(self):
         """Print the relation as a list
@@ -2887,12 +3177,14 @@ class Rel(Construct):
     def __init__(self, dom: Representable, cod: Representable):
         self.dom = dom
         self.cod = cod
-        self.relations = set()
-        for i, subset in enumerate(powerset(Product(dom, cod))):
-            relation = Relation(dom, cod, subset, f"R_{i}")
-            self.relations.add(relation)
         self._name = f"Rel({dom.name}, {cod.name})"
-        self._obj = NamedSet(self.relations, self._name)
+        subsets = powerset(Product(dom, cod))
+        relation_enum = tuple(
+            Relation.from_subobject(dom, cod, subset, name=f"R_{i}")
+            for i, subset in enumerate(subsets)
+        )
+        self.enum = relation_enum
+        self._obj = NamedSet(set(relation_enum), self._name, enum=relation_enum)
 
 
 # TODO: add infinite sets via inductive constructions or generators

@@ -280,7 +280,17 @@ mod _native {
     }
 
     #[pyfunction]
-    fn encode_surjection(card_codomain: usize, images: Vec<usize>) -> PyResult<usize> {
+    fn encode_surjection(
+        card_domain: usize,
+        card_codomain: usize,
+        images: Vec<usize>,
+    ) -> PyResult<usize> {
+        if images.len() != card_domain {
+            return Err(PyValueError::new_err(
+                "a surjection must provide one image for every domain element",
+            ));
+        }
+
         if card_codomain == 0 {
             return if images.is_empty() {
                 Ok(0)
@@ -398,6 +408,127 @@ mod _native {
         encode_injection(card_codomain, images)
     }
 
+    /// Validate and canonicalize the fibers of a surjection `[n] -> [m]`.
+    ///
+    /// The outer order is the codomain order.  A fiber is a set mathematically,
+    /// so its inner order is deliberately ignored and replaced by ascending
+    /// domain ranks.
+    fn canonical_surjection_fibers(
+        mut fibers: Vec<Vec<usize>>,
+    ) -> PyResult<(Vec<Vec<usize>>, usize)> {
+        if fibers.iter().any(Vec::is_empty) {
+            return Err(PyValueError::new_err(
+                "every fiber of a surjection must be non-empty",
+            ));
+        }
+
+        let card_domain = fibers.iter().try_fold(0usize, |cardinality, fiber| {
+            cardinality
+                .checked_add(fiber.len())
+                .ok_or_else(|| PyOverflowError::new_err("domain cardinality exceeds usize"))
+        })?;
+        let mut seen = vec![false; card_domain];
+
+        for fiber in &mut fibers {
+            fiber.sort_unstable();
+            for &image in fiber.iter() {
+                if image >= card_domain {
+                    return Err(PyValueError::new_err(
+                        "fibers must contain domain ranks in range(n)",
+                    ));
+                }
+                if seen[image] {
+                    return Err(PyValueError::new_err(
+                        "the fibers of a surjection must be pairwise disjoint",
+                    ));
+                }
+                seen[image] = true;
+            }
+        }
+
+        Ok((fibers, card_domain))
+    }
+
+    fn number_of_sections_impl(fibers: &[Vec<usize>]) -> PyResult<usize> {
+        fibers.iter().try_fold(1usize, |number, fiber| {
+            number
+                .checked_mul(fiber.len())
+                .ok_or_else(|| PyOverflowError::new_err("number of sections exceeds usize"))
+        })
+    }
+
+
+    #[pyfunction]
+    fn number_of_sections(fibers: Vec<Vec<usize>>) -> PyResult<usize> {
+        let (fibers, _) = canonical_surjection_fibers(fibers)?;
+        number_of_sections_impl(&fibers)
+    }
+
+    fn decode_section_impl(fibers: &[Vec<usize>], mut section_code: usize) -> PyResult<Vec<usize>> {
+        let number = number_of_sections_impl(fibers)?;
+        if section_code >= number {
+            return Err(PyValueError::new_err(
+                "section code outside range(number_of_sections)",
+            ));
+        }
+
+        let mut section = Vec::with_capacity(fibers.len());
+        for fiber in fibers {
+            let choice = section_code % fiber.len();
+            section_code /= fiber.len();
+            section.push(fiber[choice]);
+        }
+
+        Ok(section)
+    }
+
+    #[pyfunction]
+    fn decode_section(fibers: Vec<Vec<usize>>, section_code: usize) -> PyResult<Vec<usize>> {
+        let (fibers, _) = canonical_surjection_fibers(fibers)?;
+        decode_section_impl(&fibers, section_code)
+    }
+
+
+    #[pyfunction]
+    fn encode_section(fibers: Vec<Vec<usize>>, section: Vec<usize>) -> PyResult<usize> {
+        let (fibers, _) = canonical_surjection_fibers(fibers)?;
+        if section.len() != fibers.len() {
+            return Err(PyValueError::new_err(
+                "a section must provide one image for every fiber",
+            ));
+        }
+
+        let mut code = 0usize;
+        let mut weight = 1usize;
+        for (fiber, image) in fibers.iter().zip(section) {
+            let choice = fiber
+                .binary_search(&image)
+                .map_err(|_| PyValueError::new_err("the function is not a section"))?;
+            let term = choice
+                .checked_mul(weight)
+                .ok_or_else(|| PyOverflowError::new_err("section code exceeds usize"))?;
+            code = code
+                .checked_add(term)
+                .ok_or_else(|| PyOverflowError::new_err("section code exceeds usize"))?;
+            weight = weight
+                .checked_mul(fiber.len())
+                .ok_or_else(|| PyOverflowError::new_err("number of sections exceeds usize"))?;
+        }
+
+        Ok(code)
+    }
+
+
+    #[pyfunction]
+    fn section_code_to_injection_code(
+        fibers: Vec<Vec<usize>>,
+        section_code: usize,
+    ) -> PyResult<usize> {
+        let (fibers, card_domain) = canonical_surjection_fibers(fibers)?;
+        let section = decode_section_impl(&fibers, section_code)?;
+        encode_injection(card_domain, section)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -420,7 +551,7 @@ mod _native {
                 for m in 0..=n {
                     for rank in 0..count_surjections(n, m) {
                         let images = decode_surjection(n, m, rank).unwrap();
-                        assert_eq!(encode_surjection(m, images).unwrap(), rank);
+                        assert_eq!(encode_surjection(n, m, images).unwrap(), rank);
                     }
                 }
             }
@@ -428,9 +559,10 @@ mod _native {
 
         #[test]
         fn rejects_non_surjections() {
-            assert!(encode_surjection(3, vec![0, 1, 1]).is_err());
-            assert!(encode_surjection(2, vec![0, 2]).is_err());
-            assert!(encode_surjection(0, vec![0]).is_err());
+            assert!(encode_surjection(3, 3, vec![0, 1, 1]).is_err());
+            assert!(encode_surjection(2, 2, vec![0, 2]).is_err());
+            assert!(encode_surjection(1, 0, vec![0]).is_err());
+            assert!(encode_surjection(3, 2, vec![0, 1]).is_err());
         }
 
         #[test]
@@ -449,6 +581,78 @@ mod _native {
             assert!(encode_bijection(3, 3, vec![0, 1]).is_err());
             assert!(encode_bijection(3, 3, vec![0, 1, 1]).is_err());
             assert!(encode_bijection(3, 3, vec![0, 1, 3]).is_err());
+        }
+
+        fn fibers_from_surjection(images: &[usize], card_codomain: usize) -> Vec<Vec<usize>> {
+            let mut fibers = vec![Vec::new(); card_codomain];
+            for (domain_rank, &codomain_rank) in images.iter().enumerate() {
+                fibers[codomain_rank].push(domain_rank);
+            }
+            fibers
+        }
+
+        #[test]
+        fn section_encoding_has_a_stable_mixed_radix_order() {
+            let fibers = vec![vec![2, 0], vec![4, 1, 3]];
+            let expected = [
+                vec![0, 1],
+                vec![2, 1],
+                vec![0, 3],
+                vec![2, 3],
+                vec![0, 4],
+                vec![2, 4],
+            ];
+
+            assert_eq!(number_of_sections(fibers.clone()).unwrap(), expected.len());
+            for (code, section) in expected.into_iter().enumerate() {
+                assert_eq!(decode_section(fibers.clone(), code).unwrap(), section);
+                assert_eq!(encode_section(fibers.clone(), section).unwrap(), code);
+            }
+        }
+
+        #[test]
+        fn section_ranking_round_trips_for_all_small_surjections() {
+            for n in 0..=6 {
+                for m in 0..=n {
+                    for surjection_code in 0..count_surjections(n, m) {
+                        let images = decode_surjection(n, m, surjection_code).unwrap();
+                        let fibers = fibers_from_surjection(&images, m);
+                        let section_count = number_of_sections(fibers.clone()).unwrap();
+
+                        for section_code in 0..section_count {
+                            let section = decode_section(fibers.clone(), section_code).unwrap();
+                            assert_eq!(
+                                encode_section(fibers.clone(), section.clone()).unwrap(),
+                                section_code
+                            );
+
+                            let injection_code =
+                                section_code_to_injection_code(fibers.clone(), section_code)
+                                    .unwrap();
+                            assert_eq!(decode_injection(m, n, injection_code).unwrap(), section);
+                        }
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn the_empty_surjection_has_one_empty_section() {
+            assert_eq!(number_of_sections(vec![]).unwrap(), 1);
+            assert_eq!(decode_section(vec![], 0).unwrap(), Vec::<usize>::new());
+            assert_eq!(encode_section(vec![], vec![]).unwrap(), 0);
+            assert_eq!(section_code_to_injection_code(vec![], 0).unwrap(), 0);
+        }
+
+        #[test]
+        fn section_functions_reject_invalid_inputs() {
+            assert!(number_of_sections(vec![vec![0], vec![]]).is_err());
+            assert!(number_of_sections(vec![vec![0], vec![0]]).is_err());
+            assert!(number_of_sections(vec![vec![1]]).is_err());
+            assert!(decode_section(vec![vec![0, 1]], 2).is_err());
+            assert!(encode_section(vec![vec![0, 1]], vec![]).is_err());
+            assert!(encode_section(vec![vec![0], vec![1]], vec![1, 0]).is_err());
+            assert!(section_code_to_injection_code(vec![vec![0, 1]], 2).is_err());
         }
     }
 }
