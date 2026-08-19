@@ -5,7 +5,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Callable, Sequence
 import itertools as it
 from types import MappingProxyType
-from . import _native as rustic
+from typing import Generator
+import rustic
 
 #########################################################################################
 
@@ -1279,6 +1280,12 @@ class HomSet(Construct):
             [NamedFunction.from_index(self.A, self.B, i, name=f"f_{i}") for i in range(self.card())],
             name=self.name,
         )
+
+    def generate_lazy(self) -> Generator[NamedFunction, None, None]:
+        """Generate all functions from A to B as a generator of NamedFunctions.
+        use the rustic decoding for a quick enumeration."""
+        for i in range(self.card()):
+            yield NamedFunction.from_index(self.A, self.B, i, name=f"f_{i}")
 
     def access(self, i: int) -> NamedFunction:
         """Access the i-th function in the homset, based on the rustic encoding."""

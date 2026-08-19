@@ -6,6 +6,7 @@ from collections.abc import Mapping, Callable, Sequence
 import itertools as it
 import numpy as np
 from typing import TypeAlias
+import rustic
 
 import seth
 from seth import (
@@ -17,6 +18,7 @@ from seth import (
     union,
     pair,
     ordinal,
+    finset
 )
 
 #################################################################
@@ -300,6 +302,23 @@ class Hypergraph(Representable):
         self.link_to_nodes = {
             l: {self.nodes_dict[t] for t in self.links_support[l]} for l in self.Links
         }
+
+        self._node_enum = self.Nodes.enumeration
+        self._link_enum = self.Links.enumeration
+        self._tie_enum = self.Ties.enumeration
+        self._pairs = tuple(
+            (
+                self.Nodes.rank(self.node_map(t)),
+                self.Links.rank(self.link_map(t)),
+            )
+            for t in self._tie_enum
+        )
+
+        self.rustic = rustic.HypergraphPy(
+            nodes=len(self.Nodes),
+            links=len(self.Links),
+            pairs=list(self._pairs),
+        )
 
     @property
     def obj(self) -> Hypergraph:
@@ -1058,8 +1077,22 @@ class HypergraphMorphism:
         self.tie_map = map[1]
         self.link_map = map[2]
         self.name = name
-        if not self.test_morphisme_formel():
+
+        self.rustic = rustic.MorphismPy(
+            source=self.dom.obj.rustic,
+            target=self.cod.obj.rustic,
+            node_map=list(self.node_map._raw),
+            tie_map=list(self.tie_map._raw),
+            link_map=list(self.link_map._raw),
+            )
+
+        if not self.test_rustic():
             raise ValueError("The morphism is not a hypergraph morphism.")
+
+    def test_rustic(self) -> bool:
+        """Test whether the morphism is a hypergraph morphism using the rustic implementation."""
+        return self.rustic.test_morphism()
+
 
     def test_morphisme_formel(self) -> bool:
         """Test whether the data of the morphism satisfies the morphism condition, that is,
@@ -1104,7 +1137,6 @@ class HypergraphMorphism:
 
         return True
 
-    # ici dom et cod servent à differentier des methodes dom, cod de la classe NamedFunction
 
     def symbolic_repr(self) -> str:
         """Return a symbolic representation of the function, e.g., 
@@ -1231,6 +1263,37 @@ class HypergraphMorphism:
             name=f"Im({self.name})" if self.name else "Im",
         )
 
+    @classmethod
+    def from_rustic(
+        cls,
+        dom: Hypergraph,
+        cod: Hypergraph,
+        morphism_rustic: rustic.MorphismPy,
+        name=None,
+    ) -> HypergraphMorphism:
+        """Create a HypergraphMorphism from a rustic.MorphismPy object."""
+        node_map = NamedFunction.from_raw(
+            dom=dom.Nodes,
+            cod=cod.Nodes,
+            raw_liste=morphism_rustic.node_map,
+            name=f"s_map_{name}" if name else "s_map",
+        )
+        tie_map = NamedFunction.from_raw(
+            dom=dom.Ties,
+            cod=cod.Ties,
+            raw_liste=morphism_rustic.tie_map,
+            name=f"t_map_{name}" if name else "t_map",
+        )
+        link_map = NamedFunction.from_raw(
+            dom=dom.Links,
+            cod=cod.Links,
+            raw_liste=morphism_rustic.link_map,
+            name=f"l_map_{name}" if name else "l_map",
+        )
+        return cls(dom=dom, cod=cod, map=(node_map, tie_map, link_map), name=name)
+
+
+
 
 def composition(f1: HypergraphMorphism, f2: HypergraphMorphism) -> HypergraphMorphism:
     """ Return the composition of two morphisms of hypergraphs f1 and f2, that is the morphism of hypergraphs
@@ -1249,8 +1312,8 @@ def composition(f1: HypergraphMorphism, f2: HypergraphMorphism) -> HypergraphMor
         )
 
 
-# Monomorphismes d'hypergraphes
 
+# Hypergraphs monomorphisms
 
 class HypergraphMonomorphism(HypergraphMorphism):
     """A monomorphism in the category of hypergraphs
@@ -1369,6 +1432,27 @@ class HypergraphIsomorphism(HypergraphMorphism):
 # Ensemble des morphismes d'hypergraphes entre deux hypergraphes
 
 
+def _cardinality_indexed_by_nodes(H0: Representable, H1: Representable) -> int:
+    """Count morphisms by enumerating node maps in Rust."""
+    source = H0.obj
+    target = H1.obj
+    return rustic._cardinality_indexed_by_nodes(source.rustic, target.rustic)
+
+
+def _cardinality_indexed_by_links(H0: Representable, H1: Representable) -> int:
+    """Count morphisms by enumerating link maps in Rust."""
+    source = H0.obj
+    target = H1.obj
+    return rustic._cardinality_indexed_by_links(source.rustic, target.rustic)
+
+
+def homgraph_cardinality_fast(H0: Representable, H1: Representable) -> int:
+    """Count hypergraph morphisms using the cheapest native orientation."""
+    source = H0.obj
+    target = H1.obj
+    return rustic.homgraph_cardinality_fast(source.rustic, target.rustic)
+
+
 class CartesianHomSet(seth.Construct):
     """Represent the homset in Hyp
     For H0,H1, return Hyp[H0,H1], the set of morphisms of hypergraphs from H0 to H1
@@ -1383,8 +1467,33 @@ class CartesianHomSet(seth.Construct):
         self.hom_T = HomSet(H0.Ties, H1.Ties)
         self.hom_L = HomSet(H0.Links, H1.Links)
         self._name = f"Hom[{H0.name}, {H1.name}]"
+        self.cardinality = rustic.homgraph_cardinality_fast(H0.obj.rustic, H1.obj.rustic)
+
+    def generate_fast(self):
+        """Calculate the homset using the Rust implementation."""
+        source = self.H0.obj
+        target = self.H1.obj
+        card_hom = rustic.homgraph_cardinality_fast(source.rustic, target.rustic)
+        return NamedSet(
+            {
+                HypergraphMorphism.from_rustic(
+                    source,
+                    target,
+                    rustic.decode_hypergraph_morphism_by_nodes(
+                        source.rustic, target.rustic, i
+                    ),
+                    name=f"f_{i}",
+                )
+                for i in range(card_hom)
+            },
+            name=self._name,
+        )
 
     def generate(self):
+        """Calculate the homset using the Rust index decoder."""
+        return self.generate_fast()
+
+    def generate_formel(self):
         """Calculate the homset as a subset of the cartesian product of the homsets of the underlying sets."""
         hom = set()
         for s, t, l in it.product(self.hom_S, self.hom_T, self.hom_L):
@@ -1401,7 +1510,7 @@ class CartesianHomSet(seth.Construct):
     @property
     def obj(self) -> NamedSet:
         """Realizes Hom[H0,H1] as a Homset."""
-        return self.generate()
+        return self.generate_fast()
 
     @property
     def name(self) -> str:
@@ -1418,7 +1527,7 @@ class CartesianHomSet(seth.Construct):
         return self.name
 
     def __len__(self) -> int:
-        return len(self.obj)
+        return homgraph_cardinality_fast(self.H0, self.H1)
 
     def __iter__(self):
         return iter(self.obj)
@@ -3705,7 +3814,7 @@ Binary_Type: TypeAlias = (
 
 ##################################################
 
-# The garden of finite hypergraphs
+# -- Generating finite hypergraphs --
 
 """This section defines some specific hypergraphs 
 that are useful for testing and examples
@@ -3728,10 +3837,61 @@ def hypset(S : seth.NamedSet, L : seth.NamedSet, T : seth.NamedSet):
         hyplist.append(hypergraph_from_dict(seth.decode_function_to_dict(T, prod, i), S, L))
     return hyplist
 
-def finset(n: int) -> NamedSet:
-    """Return the finite set {0, 1, ..., n-1} with name [n]."""
-    return NamedSet(set(range(n)), f"[{n}]")
+def decode_hyp(S : seth.NamedSet, L : seth.NamedSet, T : seth.NamedSet, index: int):
+    size_S = len(S)
+    size_L = len(L)
+    size_T = len(T)
+    prod = seth.Product(S,L)
+    return hypergraph_from_dict(seth.decode_function_to_dict(T, prod, index), S, L)
 
+def decode_productmaps(S0, L0, S1, L_1 : seth.NamedSet):
+    size_S0 = len(S0)
+    size_L0 = len(L0)
+    size_S1 = len(S1)
+    size_L1 = len(L_1)
+    prod = seth.Product(seth.Product(S0,L0), seth.Product(S1,L_1))
+    total_pairs = (size_S1*size_L1)**(size_S0*size_L0)
+    for value in range(total_pairs):
+        list_of_pairs = seth.decode_function(size_S0*size_L0, size_S1*size_L1, value)
+        yield tuple((sorted(seth.Product(S0,L0))[i], sorted(seth.Product(S1,L_1))[j]) for i, j in list_of_pairs)
+
+# The garden of finite hypergraphs
+
+def bag_of_empty_links(S : seth.NamedSet | set):
+    S = S if isinstance(S, seth.NamedSet) else seth.NamedSet(elements = S, name = "S")
+    return Hypergraph(
+        Nodes = seth.Initial(),
+        Links = S,
+        Ties = seth.Initial(),
+        node_map = seth.Initial().identity,
+        link_map = seth.Initial().unique_map(S),
+        name = f"L({S.name})"
+    )
+
+def bag_of_naked_nodes(S : seth.NamedSet | set):
+    S = S if isinstance(S, seth.NamedSet) else seth.NamedSet(elements = S, name = "S")
+    return Hypergraph(
+        Nodes = S,
+        Links = seth.Initial(),
+        Ties = seth.Initial(),
+        node_map = seth.Initial().unique_map(S),
+        link_map = seth.Initial().identity,
+        name = f"S({S.name})"
+    )
+
+
+def decomp_hyp(H: Hypergraph):
+    naked = H.nakednodes()
+    empty = H.emptylinks()
+
+    Naked = bag_of_naked_nodes(naked)
+    Empty = bag_of_empty_links(empty)
+
+    Core_mut = H.hypergraph_to_mutable()
+    Core_mut.remove(S=naked, L=empty)
+    Core = Core_mut.mutable_to_hypergraph()
+
+    return FiniteCoproduct(hypergraph_list=[Core, Naked, Empty])
 
 def walking_link(n: int) -> Hypergraph:
     """Return the finite hypergraph [n]

@@ -142,6 +142,12 @@ def main():
     for section in g.sections():
         assert hyp.composition(section, g) == HZ.identity
 
+    print(f.test_rustic())
+
+    print(f.__repr__())
+    print(f.rustic)
+
+
 
 if __name__ == "__main__":
     main()

@@ -6,7 +6,7 @@ build-backend = "maturin"
 manifest-path = "rust/Cargo.toml"
 python-source = "src"
 python-packages = ["hyp", "seth"]
-module-name = "seth._native"
+module-name = "rustic.rustic"
 bindings = "pyo3"
 
 [project]

@@ -113,5 +113,9 @@ def main():
 
     print(HX.display())
 
+    print(HX.rustic)
+    print(HX.rustic.nodes)
+    print(HX.rustic.support_nodes(0))
+
 if __name__ == "__main__":
     main()
